@@ -1,0 +1,192 @@
+/* ============================================================
+   Marine Workspace — shell.css v11
+   Tema "Deep Marine": gelap elegan + mode terang
+   ============================================================ */
+:root{
+  --bar-h:64px;
+  font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+html[data-theme="dark"]{
+  --bg0:#04101d; --bg1:#071a2e;
+  --app-bg:#0a1f33;
+  --card:rgba(13,32,52,.66); --card-solid:#0d2236;
+  --ink:#eaf4fb; --muted:#8fb0c7; --faint:#5f7f96;
+  --line:rgba(148,190,220,.16);
+  --cyan:#22d3ee; --teal:#2dd4bf; --blue:#60a5fa; --amber:#fbbf24; --rose:#fb7185;
+  --accent-default:#22d3ee;
+}
+html[data-theme="light"]{
+  --bg0:#eaf2f8; --bg1:#f4f9fc;
+  --app-bg:#eef4f9;
+  --card:#ffffff; --card-solid:#ffffff;
+  --ink:#10243a; --muted:#51697e; --faint:#7d94a8;
+  --line:#d3e0ea;
+  --cyan:#0891b2; --teal:#0d9488; --blue:#2563eb; --amber:#d97706; --rose:#e11d48;
+  --accent-default:#0891b2;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:
+    radial-gradient(1100px 520px at 82% -8%, rgba(34,211,238,.10), transparent 60%),
+    radial-gradient(800px 460px at 8% 108%, rgba(45,212,191,.09), transparent 60%),
+    linear-gradient(180deg, var(--bg1), var(--bg0) 60%);
+  background-attachment:fixed;
+  color:var(--ink);
+  font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button{font:inherit;color:inherit;cursor:pointer}
+a{color:inherit}
+:focus-visible{outline:3px solid var(--cyan);outline-offset:2px;border-radius:6px}
+[hidden]{display:none!important}
+svg{fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+
+/* ---------- logo ---------- */
+.logo-disc{display:inline-flex;align-items:center;justify-content:center;background:#fff;border-radius:50%;flex:none;overflow:hidden;
+  box-shadow:0 0 0 1px var(--line),0 6px 18px -6px rgba(0,0,0,.35)}
+.logo-lg{width:68px;height:68px;padding:7px}
+.logo-sm{width:40px;height:40px;padding:3px}
+.bmkg-logo{width:100%;height:100%;object-fit:contain;display:block}
+
+/* ---------- beranda ---------- */
+.view{min-height:100dvh;position:relative}
+#waves{position:absolute;inset:0;width:100%;height:100%;z-index:0;pointer-events:none}
+#view-home > *:not(#waves){position:relative;z-index:1}
+
+/* kartu masuk utama */
+.entry-wrap{max-width:1120px;margin:34px auto 0;padding:0 24px 8px;display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.entry{
+  --accent:var(--accent-default);
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:9px;
+  position:relative;overflow:hidden;
+  background:var(--card);border:1px solid var(--line);border-radius:20px;
+  padding:30px 24px 22px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+  box-shadow:0 18px 44px -18px rgba(0,0,0,.45);
+  transition:transform .22s cubic-bezier(.2,.8,.3,1.2),box-shadow .22s,border-color .22s;
+}
+.entry::before{ /* spotlight mengikuti kursor */
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(260px circle at var(--mx,50%) var(--my,-30%), color-mix(in srgb, var(--accent) 20%, transparent), transparent 70%);
+  opacity:0;transition:opacity .3s;
+}
+.entry:hover::before{opacity:1}
+.entry::after{ /* garis aksen bawah */
+  content:"";position:absolute;left:0;right:0;bottom:0;height:3px;
+  background:linear-gradient(90deg,transparent,var(--accent),transparent);
+  transform:scaleX(0);transition:transform .3s;
+}
+.entry:hover{transform:translateY(-5px);box-shadow:0 28px 56px -18px rgba(0,0,0,.55);border-color:color-mix(in srgb, var(--accent) 45%, var(--line))}
+.entry:hover::after{transform:scaleX(1)}
+.entry-routine{--accent:var(--teal);--soft:color-mix(in srgb, var(--teal) 16%, transparent)}
+.entry-dash{--accent:var(--blue);--soft:color-mix(in srgb, var(--blue) 16%, transparent)}
+.entry-special{--accent:var(--amber);--soft:color-mix(in srgb, var(--amber) 16%, transparent)}
+.entry-num{position:absolute;top:16px;right:20px;font:800 13px 'Sora',sans-serif;letter-spacing:.14em;color:var(--faint);opacity:.7}
+.entry-icon{width:50px;height:50px;border-radius:14px;background:var(--soft);color:var(--accent);display:grid;place-items:center;margin-bottom:4px;transition:transform .25s}
+.entry:hover .entry-icon{transform:scale(1.08) rotate(-4deg)}
+.entry-icon svg{width:26px;height:26px}
+.entry-title{font-size:1.18rem;font-weight:800;letter-spacing:-.01em;font-family:'Sora',sans-serif}
+.entry-desc{color:var(--muted);font-size:.93rem;max-width:36ch}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}
+.chips i{font-style:normal;font-size:.76rem;font-weight:700;color:var(--accent);background:var(--soft);padding:3px 10px;border-radius:999px}
+.entry-cta{margin-top:auto;padding-top:16px;display:inline-flex;align-items:center;gap:7px;font-weight:700;font-size:.95rem;color:var(--accent)}
+.entry-cta svg{width:17px;height:17px;transition:transform .22s}
+.entry:hover .entry-cta svg{transform:translateX(5px)}
+
+/* ---------- tampilan aplikasi ---------- */
+.app-view{display:flex;flex-direction:column;height:100dvh;min-height:0;background:var(--app-bg)}
+.appbar{flex:none;min-height:var(--bar-h);display:flex;align-items:center;gap:12px;padding:10px 16px;
+  background:var(--card);border-bottom:1px solid var(--line);
+  backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+.appbar-title{margin:0;font-size:1.05rem;font-weight:800;letter-spacing:-.01em;line-height:1.25;font-family:'Sora',sans-serif}
+.appbar-dash .appbar-title{font-size:1rem;max-width:34ch}
+.btn-home,.btn-ghost{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);
+  background:var(--card);border-radius:999px;padding:7px 14px 7px 9px;font-weight:700;font-size:.88rem;color:var(--ink);
+  transition:border-color .2s,transform .15s}
+.btn-ghost{padding:7px 14px;margin-left:auto}
+.btn-home svg{width:18px;height:18px}
+.btn-home:hover,.btn-ghost:hover{border-color:var(--cyan);transform:translateY(-1px)}
+.tabs{margin-left:auto;display:flex;gap:4px;overflow-x:auto;overflow-y:hidden;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{border:0;background:transparent;white-space:nowrap;padding:10px 16px;font-weight:700;font-size:.9rem;color:var(--muted);border-radius:10px;position:relative;transition:color .2s,background .2s}
+.tab:hover{background:var(--soft,var(--card));color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);background:color-mix(in srgb, var(--cyan) 15%, transparent)}
+.tab[aria-selected="true"]::after{content:"";position:absolute;left:12px;right:12px;bottom:3px;height:3px;border-radius:3px;background:var(--cyan)}
+
+/* panggung iframe */
+.stage{position:relative;flex:1;min-height:0;background:#fff}
+:root{--z:.9}
+.stage iframe{position:absolute;top:0;left:0;width:calc(100% / var(--z));height:calc(100% / var(--z));transform:scale(var(--z));transform-origin:0 0;border:0;background:#fff}
+.loader{position:absolute;inset:0;display:grid;place-content:center;justify-items:center;gap:14px;background:var(--app-bg);color:var(--muted);font-weight:700;z-index:2}
+.spin{width:38px;height:38px;border-radius:50%;border:4px solid var(--line);border-top-color:var(--cyan);animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* menu alat (routine & layanan) */
+.menu-wrap{flex:1;max-width:1120px;width:100%;margin:0 auto;padding:40px 24px;display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,330px));gap:18px;align-content:start}
+.tool{
+  --accent:var(--amber);--soft:color-mix(in srgb, var(--amber) 14%, transparent);
+  text-decoration:none;color:inherit;
+  display:flex;flex-direction:column;align-items:flex-start;text-align:left;gap:8px;
+  position:relative;overflow:hidden;
+  background:var(--card);border:1px solid var(--line);border-left:5px solid var(--accent);border-radius:16px;padding:22px;
+  backdrop-filter:blur(10px);
+  transition:box-shadow .2s,transform .2s,border-color .2s;
+}
+.tool::before{content:"";position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(240px circle at var(--mx,50%) var(--my,-30%), color-mix(in srgb, var(--accent) 16%, transparent), transparent 70%);
+  opacity:0;transition:opacity .3s}
+.tool:hover::before{opacity:1}
+.tool-teal{--accent:var(--teal);--soft:color-mix(in srgb, var(--teal) 14%, transparent)}
+.tool:hover{box-shadow:0 16px 34px -14px rgba(0,0,0,.5);transform:translateY(-3px);border-color:color-mix(in srgb, var(--accent) 40%, var(--line));border-left-color:var(--accent)}
+
+/* bilah atas hide/show */
+.bar-toggle{flex:none;width:34px;height:34px;display:grid;place-items:center;border:1px solid var(--line);background:var(--card);border-radius:999px;color:var(--ink)}
+.bar-toggle:hover{border-color:var(--cyan)}
+.bar-toggle svg{width:18px;height:18px}
+.bar-show{display:none;position:fixed;top:0;right:16px;z-index:30;width:36px;height:22px;place-items:center;padding:0;border:0;border-radius:0 0 10px 10px;background:var(--cyan);color:#04202e;opacity:.85;box-shadow:0 3px 10px -3px rgba(0,0,0,.5)}
+.bar-show:hover{opacity:1}
+.bar-show svg{width:16px;height:16px}
+body.in-app{overflow:hidden}
+body.in-app.bar-hidden .appbar{display:none}
+body.in-app.bar-hidden .bar-show{display:grid}
+
+a.btn-ghost{text-decoration:none}
+
+/* ---------- override tema terang utk elemen yg didefinisikan di <style> index ---------- */
+html[data-theme="light"] body{
+  background:
+    radial-gradient(1100px 520px at 82% -8%, rgba(8,145,178,.10), transparent 60%),
+    radial-gradient(800px 460px at 8% 108%, rgba(13,148,136,.10), transparent 60%),
+    linear-gradient(180deg, #f2f8fc, #e7f0f7 60%);
+}
+html[data-theme="light"] .brand-name{color:#10243a}
+html[data-theme="light"] .brand-tag{color:#5c7488}
+html[data-theme="light"] .clock-time{color:#10243a}
+html[data-theme="light"] .hero-new h1{color:#0b2540}
+html[data-theme="light"] .greet{color:#0e7490;background:rgba(8,145,178,.1);border-color:rgba(8,145,178,.3)}
+html[data-theme="light"] .hero-sub-new{color:#4d6880}
+html[data-theme="light"] .stat{background:rgba(255,255,255,.85);border-color:#d3e0ea}
+html[data-theme="light"] .stat span{color:#5c7488}
+html[data-theme="light"] .ticker-wrap{background:rgba(255,255,255,.6);border-color:#d3e0ea}
+html[data-theme="light"] .ticker span{color:#6b8499}
+html[data-theme="light"] .ticker span i{color:#0891b2}
+html[data-theme="light"] #theme-toggle{background:rgba(255,255,255,.9);border-color:#d3e0ea;color:#10243a}
+
+/* ---------- responsif ---------- */
+@media (max-width:900px){
+  .entry-wrap{grid-template-columns:1fr}
+  .entry-desc{max-width:none}
+  .appbar-dash{flex-wrap:wrap}
+  .appbar-dash .appbar-title{max-width:none;flex:1 1 200px;font-size:.92rem}
+  .tabs{margin-left:0;width:100%;order:5}
+}
+@media (max-width:560px){
+  .entry-wrap{padding:0 16px 8px;margin-top:24px}
+  .btn-home span{display:none}
+  .btn-home{padding:7px}
+  .menu-wrap{padding:24px 16px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition:none!important;animation-duration:.01ms!important}
+}
