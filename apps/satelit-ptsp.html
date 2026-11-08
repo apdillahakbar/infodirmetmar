@@ -5,19 +5,25 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Satelit PTSP</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap">
+<script src="../assets/theme-hud.js"></script>
 <style>
-:root{--navy:#0B2E4F;--teal:#0E7C86;--teal-soft:#DDF0F1;--amber:#E9A21B;--amber-soft:#FBEED0;--paper:#F3F7FA;--ink:#102232;--muted:#51667A;--line:#D5E0E8;
+:root{--navy:#0B2E4F;--teal:#0E7C86;--teal-soft:#DDF0F1;--amber:#E9A21B;--amber-soft:#FBEED0;--paper:#F3F7FA;--card-bg:#FFFFFF;--ink:#102232;--muted:#51667A;--line:#D5E0E8;
   font-family:"Plus Jakarta Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+html[data-theme="dark"], html:not([data-theme="light"]) {
+  --paper:#060d17;--card-bg:rgba(12, 26, 44, 0.85);--ink:#f0f6fc;--muted:#8ba2b9;--line:rgba(56, 189, 248, 0.2);
+  --teal:#00f0ff;--teal-soft:rgba(0, 240, 255, 0.15);--amber:#fbbf24;--amber-soft:rgba(251, 191, 36, 0.15);
+}
 *{box-sizing:border-box}
-body{margin:0;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased}
+body{margin:0;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;transition:background .3s,color .3s}
 main{max-width:760px;margin:0 auto;padding:32px 24px 56px}
 h1{margin:0 0 6px;font-size:1.5rem;font-weight:800;letter-spacing:-.02em}
 .lead{margin:0 0 22px;color:var(--muted)}
-.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+.card{background:var(--card-bg);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px;box-shadow:0 10px 30px rgba(0,0,0,0.1)}
 .card h2{margin:0 0 10px;font-size:1.02rem;font-weight:700}
 .cta{display:flex;flex-wrap:wrap;align-items:center;gap:14px;border-left:5px solid var(--teal)}
-.btn{display:inline-flex;align-items:center;gap:8px;background:var(--teal);color:#fff;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:999px;border:0}
-.btn:hover{background:#0b6a73}
+.btn{display:inline-flex;align-items:center;gap:8px;background:var(--teal);color:#030a14;text-decoration:none;font-weight:700;padding:11px 20px;border-radius:999px;border:0}
+html[data-theme="light"] .btn{color:#fff;background:var(--teal)}
+.btn:hover{filter:brightness(1.1)}
 .btn:focus-visible{outline:3px solid #2B7BE4;outline-offset:2px}
 .btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .cta small{color:var(--muted);flex:1 1 220px}
