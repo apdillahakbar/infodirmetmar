@@ -1368,6 +1368,22 @@ body.task-dragging * {
 
 
  
+.monitoring-workspace.swh-direct .monitoring-toolbar {
+  display: none;
+}
+
+.monitoring-workspace.swh-direct .monitoring-frame-wrap {
+  height: 100vh;
+  min-height: 650px;
+}
+
+.monitoring-workspace.swh-direct .monitoring-frame-swh {
+  width: 100%;
+  height: 100%;
+  transform: none;
+  transform-origin: top left;
+}
+
 .monitoring-workspace.marine-guidance-direct .monitoring-frame-wrap {
   height: calc(100vh - 42px);
   min-height: 650px;
@@ -2084,6 +2100,18 @@ width: 100%;
 
       </button>
 
+
+      <button
+        id="menuGIFGenerator"
+        class="sidebar-menu-button"
+        title="GIF Generator"
+        onclick="showWorkspace('swhGenerator')">
+
+        <span class="sidebar-menu-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 3v18"/><path d="M3 7.5h4"/><path d="M3 12h18"/><path d="M3 16.5h4"/><path d="M17 3v18"/><path d="M17 7.5h4"/><path d="M17 16.5h4"/></svg></span>
+        <span class="sidebar-menu-text">GIF Generator</span>
+
+      </button>
+
     </nav>
 
   </aside>
@@ -2696,12 +2724,19 @@ const MONITORING_CONFIG = {
     title: 'Rekap Kec. Kapal',
     direct: true
   },
+  swhGenerator: {
+    key: 'swhGenerator',
+    title: 'GIF Generator',
+    direct: true
+  },
   marineGuidance: {
     key: 'marineGuidance',
     title: 'Marine Guidance',
     direct: true
   }
 };
+
+const SWH_GENERATOR_URL = 'gif-generator.html?v=1';
 
 const PPT_BRIEFING_URL =
   'https://docs.google.com/presentation/d/19bSiu_AYQqIF3rI4JnlODNpfbVD-F4Mi/edit?usp=sharing&ouid=117535660510936955251&rtpof=true&sd=true';
@@ -2775,10 +2810,14 @@ function showWorkspace(workspace) {
   const isuMenu =
     document.getElementById('menuLogbookIsu');
 
+
+  const swhGeneratorMenu =
+    document.getElementById('menuGIFGenerator');
+
   const briefingMenu =
     document.getElementById('menuBriefing');
 
-  [taskMenu, synergieMenu, uptMenu, mfstudioMenu, diseminasiMenu, robMenu, bencanaMenu, isuMenu, rekapKapalMenu, briefingMenu]
+  [taskMenu, synergieMenu, uptMenu, mfstudioMenu, diseminasiMenu, robMenu, bencanaMenu, isuMenu, rekapKapalMenu, swhGeneratorMenu, briefingMenu]
     .forEach(function(button) {
       if (button) {
         button.classList.remove('active');
@@ -2792,6 +2831,7 @@ function showWorkspace(workspace) {
     taskWorkspace.style.display = 'block';
     monitoringWorkspace.style.display = 'none';
     monitoringWorkspace.classList.remove('rekap-direct');
+    monitoringWorkspace.classList.remove('swh-direct');
     monitoringWorkspace.classList.remove('marine-guidance-direct');
 
     taskMenu.classList.add('active');
@@ -2830,6 +2870,11 @@ function showWorkspace(workspace) {
   );
 
   monitoringWorkspace.classList.toggle(
+    'swh-direct',
+    workspace === 'swhGenerator'
+  );
+
+  monitoringWorkspace.classList.toggle(
     'marine-guidance-direct',
     workspace === 'marineGuidance'
   );
@@ -2843,7 +2888,8 @@ function showWorkspace(workspace) {
     refreshButton.style.display =
       (workspace === 'rekapKapal' ||
        workspace === 'bencanaMaritim' ||
-       workspace === 'isuMaritim') ? 'none' : 'inline-block';
+       workspace === 'isuMaritim' ||
+       workspace === 'swhGenerator') ? 'none' : 'inline-block';
   }
 
   if (marineGuidanceEditButton) {
@@ -2869,6 +2915,8 @@ function showWorkspace(workspace) {
   } else if (workspace === 'rekapKapal') {
     rekapKapalMenu.classList.add('active');
   } else if (workspace === 'marineGuidance') {
+  } else if (workspace === 'swhGenerator') {
+    swhGeneratorMenu.classList.add('active');
   }
 
   document.getElementById('monitoringTitle').textContent =
@@ -2894,6 +2942,7 @@ const monitoringFrames = {};
 let monitoringPrefetchStarted = false;
 
 const MONITORING_DIRECT_URLS = {
+  swhGenerator: SWH_GENERATOR_URL,
   marineGuidance: MARINE_GUIDANCE_EMBED_URL,
   rekapKapal: REKAP_KAPAL_DIRECT_URL,
   bencanaMaritim: LOGBOOK_BENCANA_URL,
@@ -3004,6 +3053,9 @@ function renderMonitoring(workspace, result) {
   if (workspace === 'marineGuidance') {
     url = MARINE_GUIDANCE_EMBED_URL;
     extraClass = 'monitoring-frame-marine-guidance';
+  } else if (workspace === 'swhGenerator') {
+    url = SWH_GENERATOR_URL;
+    extraClass = 'monitoring-frame-swh';
   } else if (workspace === 'mfstudio') {
     extraClass = 'monitoring-frame-mfstudio';
   }
@@ -3191,7 +3243,8 @@ function refreshMonitoring() {
     currentWorkspace === 'task' ||
     currentWorkspace === 'rekapKapal' ||
     currentWorkspace === 'bencanaMaritim' ||
-    currentWorkspace === 'isuMaritim'
+    currentWorkspace === 'isuMaritim' ||
+    currentWorkspace === 'swhGenerator'
   ) {
     return;
   }
