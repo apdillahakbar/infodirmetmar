@@ -55,31 +55,27 @@
   #routine-menu .tool .entry-desc{grid-column:2;grid-row:2;font-size:13px;line-height:1.35;margin:0;max-width:none;align-self:start}
   #routine-menu .tool:hover{border-color:rgb(var(--tc-rgb));box-shadow:0 6px 18px rgba(var(--tc-rgb),.28)}
 
-  /* warna per baris: biru - oranye - ungu - merah muda (desktop 4 kolom) */
+  /* warna per baris: biru - oranye - ungu (desktop 4 kolom) */
   #routine-menu .tool:nth-child(n+1):nth-child(-n+4){--tc-rgb:37,99,235}
   #routine-menu .tool:nth-child(n+5):nth-child(-n+8){--tc-rgb:232,89,12}
   #routine-menu .tool:nth-child(n+9):nth-child(-n+12){--tc-rgb:147,51,234}
-  #routine-menu .tool:nth-child(n+13):nth-child(-n+16){--tc-rgb:219,39,119}
   html[data-theme="dark"] #routine-menu .tool:nth-child(n+1):nth-child(-n+4){--tc-rgb:110,168,255}
   html[data-theme="dark"] #routine-menu .tool:nth-child(n+5):nth-child(-n+8){--tc-rgb:255,154,92}
   html[data-theme="dark"] #routine-menu .tool:nth-child(n+9):nth-child(-n+12){--tc-rgb:196,139,255}
-  html[data-theme="dark"] #routine-menu .tool:nth-child(n+13):nth-child(-n+16){--tc-rgb:255,127,181}
 
-  /* tablet: 3 kolom = 5 baris (biru, oranye, ungu, merah muda, biru) */
+  /* tablet: 3 kolom = 4 baris (biru, oranye, ungu, merah muda) */
   @media (max-width:960px){
     #routine-menu.menu-routine{grid-template-columns:repeat(3,minmax(0,1fr))}
     #routine-menu .tool:nth-child(n+1):nth-child(-n+3){--tc-rgb:37,99,235}
     #routine-menu .tool:nth-child(n+4):nth-child(-n+6){--tc-rgb:232,89,12}
     #routine-menu .tool:nth-child(n+7):nth-child(-n+9){--tc-rgb:147,51,234}
     #routine-menu .tool:nth-child(n+10):nth-child(-n+12){--tc-rgb:219,39,119}
-    #routine-menu .tool:nth-child(n+13):nth-child(-n+15){--tc-rgb:37,99,235}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+1):nth-child(-n+3){--tc-rgb:110,168,255}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+4):nth-child(-n+6){--tc-rgb:255,154,92}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+7):nth-child(-n+9){--tc-rgb:196,139,255}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+10):nth-child(-n+12){--tc-rgb:255,127,181}
-    html[data-theme="dark"] #routine-menu .tool:nth-child(n+13):nth-child(-n+15){--tc-rgb:110,168,255}
   }
-  /* HP: 2 kolom = 7 baris (biru, oranye, ungu, merah muda, biru, oranye, ungu) */
+  /* HP: 2 kolom = 6 baris (biru, oranye, ungu, merah muda, biru, oranye) */
   @media (max-width:620px){
     #routine-menu.menu-routine{grid-template-columns:repeat(2,minmax(0,1fr));padding:12px 12px 56px;gap:8px;font-size:14px}
     #routine-menu .tool{padding:10px;column-gap:10px}
@@ -93,14 +89,12 @@
     #routine-menu .tool:nth-child(n+7):nth-child(-n+8){--tc-rgb:219,39,119}
     #routine-menu .tool:nth-child(n+9):nth-child(-n+10){--tc-rgb:37,99,235}
     #routine-menu .tool:nth-child(n+11):nth-child(-n+12){--tc-rgb:232,89,12}
-    #routine-menu .tool:nth-child(n+13):nth-child(-n+14){--tc-rgb:147,51,234}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+1):nth-child(-n+2){--tc-rgb:110,168,255}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+3):nth-child(-n+4){--tc-rgb:255,154,92}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+5):nth-child(-n+6){--tc-rgb:196,139,255}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+7):nth-child(-n+8){--tc-rgb:255,127,181}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+9):nth-child(-n+10){--tc-rgb:110,168,255}
     html[data-theme="dark"] #routine-menu .tool:nth-child(n+11):nth-child(-n+12){--tc-rgb:255,154,92}
-    html[data-theme="dark"] #routine-menu .tool:nth-child(n+13):nth-child(-n+14){--tc-rgb:196,139,255}
   }
 
   /* ===== Tombol tema: icon saja, interaktif ===== */
@@ -271,11 +265,6 @@ document.documentElement.classList.add('locked');
       <span class="entry-title">MET-PUBLIK</span>
       <span class="entry-desc">Web Meteorologi Publik.</span>
     </a>
-    <button class="tool" data-routine="gif-generator">
-      <span class="entry-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M15 15.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z"/><path d="M21 12.17V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="m6 21 5-5"/><circle cx="9" cy="9" r="2"/></svg></span>
-      <span class="entry-title">GIF Generator</span>
-      <span class="entry-desc">Pembuatan GIF, MP4, dan unduh gambar BMKG.</span>
-    </button>
   </div>
   <div class="stage" id="stage-routine" hidden></div>
 </section>

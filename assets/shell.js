@@ -14,10 +14,7 @@
   };
   var V = '12';
   function bust(u) { return u + (u.indexOf('?') < 0 ? '?' : '&') + 'v=' + V; }
-  var ROUTINE = {
-    task: { label: 'Task Management', src: 'apps/fod.html' },
-    'gif-generator': { label: 'GIF Generator', src: 'apps/gif-generator.html' }
-  };
+  var ROUTINE = { task: { label: 'Task Management', src: 'apps/fod.html' } };
 
   /* Daftar nama file logo yang dicoba berurutan sampai ada yang ketemu. */
   var LOGO_CANDIDATES = [
