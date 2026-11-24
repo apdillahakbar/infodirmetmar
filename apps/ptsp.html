@@ -1,8 +1,22 @@
 <!DOCTYPE html>
 <html lang="id">
 <head>
-<script src="../assets/config.js?v=4"></script>
-<script src="../assets/gas-bridge.js?v=8" data-app="ptsp"></script>
+<script src="../assets/config.js?v=8"></script>
+<script src="../assets/gas-bridge.js?v=4" data-app="ptsp"></script>
+<script>
+/* Mulai ambil data Layanan SEKARANG, paralel dengan pengunduhan library (jQuery, DataTables, Chart.js).
+   Hasilnya dipakai oleh loadDashboard() lewat layananCall(). */
+(function(){
+  var s = window.__layananPrefetch = { done: false, res: null, err: null, waiters: [], used: false };
+  function flush(){ s.waiters.splice(0).forEach(function(w){ s.err ? w.fail(s.err) : w.ok(s.res); }); }
+  try {
+    google.script.run
+      .withSuccessHandler(function(r){ s.done = true; s.res = r; flush(); })
+      .withFailureHandler(function(e){ s.done = true; s.err = e || new Error('Gagal memuat data'); flush(); })
+      .getLayananData();
+  } catch (e) { s.done = true; s.err = e; }
+})();
+</script>
 
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -858,11 +872,32 @@ body{
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.1/js/dataTables.buttons.min.js"></script>
 <script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.bootstrap5.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js"></script>
-<script src="https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script>
+/* jszip + pdfmake + vfs_fonts + buttons.html5 (sekitar 1 MB) hanya dipakai tombol Excel/PDF di tab Kinerja,
+   jadi dimuat belakangan, bukan menghalangi tampilnya dashboard Layanan. */
+window.loadExportLibs = function(){
+  if (window.__exportLibs) return window.__exportLibs;
+  var urls = [
+    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/pdfmake.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.1.53/vfs_fonts.js',
+    'https://cdn.datatables.net/buttons/2.4.1/js/buttons.html5.min.js'
+  ];
+  window.__exportLibs = new Promise(function(resolve){
+    var left = urls.length;
+    urls.forEach(function(u){
+      var el = document.createElement('script');
+      el.src = u; el.async = false;          /* async=false: urutan eksekusi tetap sesuai daftar */
+      el.onload = el.onerror = function(){ if (--left === 0) resolve(); };
+      document.head.appendChild(el);
+    });
+  });
+  return window.__exportLibs;
+};
+/* Mulai unduh saat browser menganggur, supaya tab Kinerja tetap cepat dibuka. */
+(window.requestIdleCallback || function(f){ setTimeout(f, 3000); })(function(){ window.loadExportLibs(); });
+</script>
 
 <!-- ===================== SHELL JS ===================== -->
 <script>
@@ -906,7 +941,8 @@ body{
     b.addEventListener('click', function(){ showView(b.getAttribute('data-view')); });
   });
 
-  window.addEventListener('load', function(){ showView('layanan'); });
+  function start(){ showView('layanan'); }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start); else start();
 })();
 </script>
 
@@ -964,58 +1000,83 @@ const MONTHS = [
 window.LayananApp = { init: loadDashboard };
 
 
+/* Pengganti google.script.run untuk getLayananData: pakai hasil prefetch di <head> bila ada. */
+function layananCall() {
+  var ok, fail, o = {
+    withSuccessHandler: function(f){ ok = f; return o; },
+    withFailureHandler: function(f){ fail = f; return o; },
+    getLayananData: function(){
+      var s = window.__layananPrefetch;
+      if (s && !s.used) {
+        s.used = true;
+        if (s.done) { s.err ? fail(s.err) : ok(s.res); }
+        else s.waiters.push({ ok: ok, fail: fail });
+        return;
+      }
+      google.script.run.withSuccessHandler(ok).withFailureHandler(fail).getLayananData();
+    }
+  };
+  return o;
+}
+
+var CACHE_KEY = 'miw_ptsp_layanan_v1';
+var FILTER_IDS = ['yearFilter', 'monthFilter', 'serviceFilter', 'searchFilter'];
+
+function cacheRead() {
+  try { return localStorage.getItem(CACHE_KEY); } catch (e) { return null; }
+}
+function cacheWrite(str) {
+  try { localStorage.setItem(CACHE_KEY, str); } catch (e) { /* kuota penuh / diblokir: abaikan */ }
+}
+
+function renderLayanan(result) {
+  allData = ((result && result.data) || []).sort(byNewest);
+
+  if (!allData.length) {
+    var info = document.querySelector('#view-layanan .page-banner-sub');
+    info.style.color = '#fecaca';
+    info.textContent = !result
+      ? 'Server mengembalikan data kosong (null). Cek Executions/log di Apps Script.'
+      : 'Server mengembalikan 0 data. Spreadsheet: ' + (result.ssName || '?') +
+        ' | Sheet ditemukan: ' + ((result.sheetsFound || []).join(', ') || '-');
+  }
+
+  /* simpan pilihan filter, bangun ulang, lalu kembalikan (dipakai saat data segar menggantikan cache) */
+  var keep = {};
+  FILTER_IDS.forEach(function (id) { var el = document.getElementById(id); if (el) keep[id] = el.value; });
+  buildFilters();
+  FILTER_IDS.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el && keep[id] != null && keep[id] !== '') el.value = keep[id];
+  });
+  applyFilters();
+
+  document.getElementById('loading').style.display = 'none';
+}
+
 function loadDashboard() {
+  /* 1) Tampilkan data tersimpan dari kunjungan sebelumnya SEGERA (bila ada). */
+  var cachedStr = cacheRead(), shownFromCache = false;
+  if (cachedStr) {
+    try { renderLayanan(JSON.parse(cachedStr)); shownFromCache = true; }
+    catch (e) { shownFromCache = false; }
+  }
 
-  google.script.run
-
-    .withSuccessHandler(
-      function(result) {
-
-        allData = ((result && result.data) || []).sort(byNewest);
-
-        if (!allData.length) {
-          var info = document.querySelector('#view-layanan .page-banner-sub');
-          info.style.color = '#fecaca';
-          info.textContent = !result
-            ? 'Server mengembalikan data kosong (null). Cek Executions/log di Apps Script.'
-            : 'Server mengembalikan 0 data. Spreadsheet: ' + (result.ssName || '?') +
-              ' | Sheet ditemukan: ' + ((result.sheetsFound || []).join(', ') || '-');
-        }
-
-        buildFilters();
-
-        applyFilters();
-
-        document
-          .getElementById(
-            'loading'
-          )
-          .style.display =
-            'none';
-
-      }
-    )
-
-    .withFailureHandler(
-      function(error) {
-
-        document
-          .getElementById(
-            'loading'
-          )
-          .style.display =
-            'none';
-
-        window.markViewFailed('layanan');
-        alert('Gagal memuat dashboard:\n' +
-          error.message
-        );
-
-      }
-    )
-
+  /* 2) Ambil data terbaru di latar belakang; tampilan hanya diperbarui kalau datanya berubah. */
+  layananCall()
+    .withSuccessHandler(function (result) {
+      var fresh = JSON.stringify(result || null);
+      if (shownFromCache && fresh === cachedStr) return;
+      if (result && result.data && result.data.length) cacheWrite(fresh);
+      renderLayanan(result);
+    })
+    .withFailureHandler(function (error) {
+      document.getElementById('loading').style.display = 'none';
+      if (shownFromCache) { console.warn('Data terbaru gagal dimuat, memakai data tersimpan:', error); return; }
+      window.markViewFailed('layanan');
+      alert('Gagal memuat dashboard:\n' + error.message);
+    })
     .getLayananData();
-
 }
 
 
@@ -1024,6 +1085,12 @@ function loadDashboard() {
 ===================================================== */
 
 function buildFilters() {
+
+  ['yearFilter', 'monthFilter', 'serviceFilter'].forEach(function (id) {
+    var sel = document.getElementById(id);
+    while (sel.options.length > 1) sel.remove(sel.options.length - 1);
+  });
+
 
   const years =
     [
@@ -1143,6 +1210,8 @@ function buildFilters() {
   );
 
 
+  if (!buildFilters._bound) {
+  buildFilters._bound = true;
   yearFilter.addEventListener(
     'change',
     applyFilters
@@ -1182,7 +1251,7 @@ function buildFilters() {
       'click',
       resetFilters
     );
-
+  }
 }
 
 
@@ -2773,7 +2842,11 @@ function debounce(
     function loadKinerja() {
         document.getElementById('kpiTotal').innerText = "-";
         google.script.run
-            .withSuccessHandler(function(d) { setLoading(false); initDashboard(d); })
+            .withSuccessHandler(function(d) {
+                (window.loadExportLibs ? window.loadExportLibs() : Promise.resolve()).then(function() {
+                    setLoading(false); initDashboard(d);
+                });
+            })
             .withFailureHandler(function(err) {
                 setLoading(false);
                 window.markViewFailed('kinerja');

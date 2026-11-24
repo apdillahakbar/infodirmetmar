@@ -140,7 +140,7 @@ function cropCv(src,x0,y0,x1,y1){const k=DPI/72,c=document.createElement('canvas
 /* ---------- parse laporan ---------- */
 async function parseReport(P,st){
  const L=lines(P.items),txt=L.map(ltxt).join('\n');let m=txt.match(/Coordinates?\s*:?\s*(.+)/i);let raw=m?m[1].trim():'';if(!raw){const tk=coordTokens(txt);if(tk.length>=2)raw=txt.slice(tk[0].s,tk[1].e)}const ft=raw.match(/^from\s+(.+?)\s+to\s+(.+)$/i);
- const r={start:ft?ft[1].trim():raw,end:ft?ft[2].trim():'',date:'',tz:'(WIB)',first_date:'',rows:[],sat:null,st,pi:P.pi};
+ const r={start:stdCoord(ft?ft[1].trim():raw),end:stdCoord(ft?ft[2].trim():''),date:'',tz:'(WIB)',first_date:'',rows:[],sat:null,st,pi:P.pi};
  m=txt.match(/^for\s+(.+)$/m);r.date=m?m[1].trim():'';
  const all=await findImages(P.pg,P.vp),imgs=all.filter(i=>i.top>(st?150:250)&&i.bottom-i.top>120);let im=imgs[imgs.length-1];
  if(im){const cv=await renderPage(P.pg,DPI/72);r.sat=await png(cropCv(cv,im.x0,im.top,im.x1,im.bottom))}
@@ -207,7 +207,7 @@ async function findSig(){for(const pi in S.P){if(!S.D.reports.some(r=>r.pi==pi))
  o.getContext('2d').drawImage(c,x0,y0,o.width,o.height,0,0,o.width,o.height);return png(o)}return null}
 
 /* ---------- util ---------- */
-const BF=[1,4,7,11,16,22,28,34,41,48,56,64];
+const BF=[1,4,7,11,17,22,28,34,41,48,56,64];
 function beaufort(v){const n=(v.match(/\d+(?:[.,]\d+)?/g)||[]).map(x=>+x.replace(',','.'));if(!n.length)return'-';const a=BF.filter(t=>Math.min(...n)>=t).length,b=BF.filter(t=>Math.max(...n)>=t).length;return a===b?''+a:a+' - '+b}
 function splitDV(c){const l=c.split('\n').map(x=>x.trim()).filter(Boolean);return l.length&&/^[\d.,\s–\-—]+$/.test(l[l.length-1])?[l.slice(0,-1).join(' '),l[l.length-1]]:[l.join(' '),'']}
 const MONI={jan:0,feb:1,mar:2,apr:3,may:4,mei:4,jun:5,jul:6,aug:7,agu:7,agt:7,sep:8,oct:9,okt:9,nov:10,dec:11,des:11};
@@ -250,6 +250,8 @@ function fmtOne(v,lat,st){const h=lat?(v<0?'S':'N'):(v<0?'W':'E'),a=Math.abs(v),
  let sc=(m-Math.floor(m))*60;m=Math.floor(m+1e-9);sc=+sc.toFixed(st.dec);if(sc>=60){m++;sc-=60}if(m>=60){d++;m-=60}return P(d,w)+st.dg+P(m,2)+st.mn+sc.toFixed(st.dec)+st.sc+(st.hs?' ':'')+h}
 function normCoord(t,st){if(!st||!t)return t;const k=coordTokens(t);if(k.length<2)return t;let o='',p=0;
  for(let i=0;i+1<k.length;i+=2){let a=k[i],b=k[i+1];if(!a.lat&&b.lat)[a,b]=[b,a];o+=t.slice(p,k[i].s)+fmtOne(a.v,true,st)+st.sep+fmtOne(b.v,false,st);p=k[i+1].e}return o+t.slice(p)}
+/* simbol baku: derajat ° (U+00B0), menit ′ (U+2032), detik ″ (U+2033), arah N/S/E/W huruf besar, tanpa spasi di dalam satu koordinat. Angka & bentuk (DMS/DMM/desimal) tetap dari surat. */
+function stdCoord(t){return String(t||'').replace(CRE,(m0,dg,s1,mn,s2,sc,s3,hm)=>dg+'°'+(mn!==undefined?mn+'′':'')+(sc!==undefined?sc+'″':'')+hm.toUpperCase())}
 
 /* ---------- DOCX ---------- */
 const NW='http://schemas.openxmlformats.org/wordprocessingml/2006/main',NWP='http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing',NA='http://schemas.openxmlformats.org/drawingml/2006/main',NR='http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -283,7 +285,7 @@ async function build(){
  S.auto=!ds(body,'r').some(r=>isY(r)&&rt(r)!=='');   /* run kuning KOSONG tidak dihitung */
  if(S.auto)autoMark(kids0.slice(0,st0),kids0.slice(st0,end));
  const cp0=kids0.slice(st0,end).find(e=>e.localName==='p'&&pt(e).startsWith('Coordinate')),bs0=paras.find(p=>pt(p).startsWith('●')&&hy(p));
- const cst=(cp0&&coordStyle(yText(cp0)))||(bs0&&coordStyle(pt(bs0)))||null;   /* gaya koordinat contoh di template */
+ const cst=null;   /* koordinat TIDAK diseragamkan ke gaya template: ikut format asli surat (DMS/DMM/desimal) */
  const RS=D.reports.map(r=>({...r,start:normCoord(r.start,cst),end:normCoord(r.end,cst)}));S.out=[];
  if(!noLetter){
  if(!L.bulletsManual){const sm=paras.find(p=>pt(p).startsWith('●')&&hy(p));L.bullets=RS.map(r=>bulletText(r,sm?pt(sm):''))}
