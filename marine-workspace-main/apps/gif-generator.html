@@ -1,0 +1,2890 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <title>GIF and Image Generator</title>
+
+  <!-- GIF encoder -->
+  <script src="https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.js"></script>
+
+  <!-- MP4 muxer (dipakai bersama WebCodecs H.264) -->
+  <script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+
+  <!-- Bridge lokal otomatis (GitHub Pages / lokal -> http://127.0.0.1:8000, tanpa Google Apps Script) -->
+  <script>
+    (function() {
+      if (window.google && window.google.script && window.google.script.run) return;
+      const isSameBackend =
+        (location.hostname === '127.0.0.1' || location.hostname === 'localhost') &&
+        location.port === '8000';
+      const apiBase = isSameBackend ? '' : 'http://127.0.0.1:8000';
+
+      function probeImage(url) {
+        return new Promise(function(resolve) {
+          const img = new Image();
+          let done = false;
+          const t = setTimeout(function() { if (!done) { done = true; resolve(false); } }, 8000);
+          img.onload = function() { if (!done) { done = true; clearTimeout(t); resolve(true); } };
+          img.onerror = function() { if (!done) { done = true; clearTimeout(t); resolve(false); } };
+          img.src = url;
+        });
+      }
+
+      async function fallbackLatestBaseRun(source) {
+        const cfg = {
+          cawo: { base: 'https://maritim.bmkg.go.id/render-static/inacawowave', path: '/metwilpro/indonesia/' },
+          inawaves: { base: 'https://maritim.bmkg.go.id/render-static/inawaves-ensemble', path: '/gfs/indonesia/' }
+        }[source];
+        if (!cfg) return { baseRun: null, checked: 0, blocked: false, error: null };
+
+        const now = new Date();
+        let cur = Date.UTC(
+          now.getUTCFullYear(),
+          now.getUTCMonth(),
+          now.getUTCDate(),
+          now.getUTCHours() >= 12 ? 12 : 0,
+          0,
+          0
+        );
+        const stepMs = 12 * 3600000;
+        let found = null;
+
+        for (let i = 0; i < 10; i++) {
+          const d = new Date(cur);
+          const stamp =
+            d.getUTCFullYear() +
+            String(d.getUTCMonth() + 1).padStart(2, '0') +
+            String(d.getUTCDate()).padStart(2, '0') +
+            String(d.getUTCHours()).padStart(2, '0');
+          const url =
+            cfg.base + '/' + stamp.slice(0, 4) + '/' + stamp.slice(4, 6) + '/' +
+            stamp + cfg.path + 'swh_' + stamp + '.png';
+          if (await probeImage(url)) {
+            found = stamp;
+            break;
+          }
+          cur -= stepMs;
+        }
+        return { baseRun: found, checked: 10, blocked: false, error: null };
+      }
+
+      async function fallbackGifWorkerScript() {
+        const resp = await fetch('https://cdn.jsdelivr.net/npm/gif.js@0.2.0/dist/gif.worker.js');
+        if (!resp.ok) throw new Error('Gagal mengambil gif.worker.js (' + resp.status + ')');
+        return await resp.text();
+      }
+
+      function makeRunner(onSuccess, onFailure) {
+        return new Proxy({}, {
+          get: function(_target, prop) {
+            if (prop === 'withSuccessHandler') {
+              return function(fn) { return makeRunner(fn, onFailure); };
+            }
+            if (prop === 'withFailureHandler') {
+              return function(fn) { return makeRunner(onSuccess, fn); };
+            }
+            return function() {
+              const fnName = String(prop);
+              const args = Array.prototype.slice.call(arguments);
+              fetch(apiBase + '/api/' + encodeURIComponent(fnName), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ args: args })
+              })
+              .then(function(resp) {
+                return resp.json().then(function(payload) {
+                  if (!resp.ok || !payload.ok) {
+                    throw new Error((payload && payload.error) || ('HTTP ' + resp.status));
+                  }
+                  return payload.result;
+                });
+              })
+              .catch(function(err) {
+                if (err && (err instanceof TypeError || /Failed to fetch/i.test(String(err.message || err)))) {
+                  if (fnName === 'getLatestBaseRun') {
+                    return fallbackLatestBaseRun(args[0]);
+                  }
+                  if (fnName === 'getGifWorkerScript') {
+                    return fallbackGifWorkerScript();
+                  }
+                  throw new Error('Server lokal (127.0.0.1:8000) belum aktif. Jalankan Start-App.bat di komputer Anda lalu coba lagi.');
+                }
+                throw err;
+              })
+              .then(function(result) {
+                if (typeof onSuccess === 'function') onSuccess(result);
+              })
+              .catch(function(err) {
+                if (typeof onFailure === 'function') onFailure(err);
+                else console.error('Local RPC error (' + fnName + '):', err);
+              });
+            };
+          }
+        });
+      }
+
+      window.google = window.google || {};
+      window.google.script = { run: makeRunner(null, null) };
+    })();
+  </script>
+
+  <style>
+    :root {
+      --navy: #063b68;
+      --blue: #087bc9;
+      --blue2: #0b91dc;
+      --light: #eaf5fc;
+      --soft: #f4f8fb;
+      --text: #173b56;
+      --muted: #71879a;
+      --border: #d9e7ef;
+      --white: #fff;
+      --green: #16834b;
+      --green-light: #e9f8ef;
+      --orange: #d97706;
+      --orange-light: #fff5e6;
+      --shadow: 0 7px 24px rgba(25,74,108,.09);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      min-height: 100%;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--text);
+      background:
+        linear-gradient(
+          180deg,
+          #edf7fc 0,
+          #f7fafc 360px,
+          #f2f7fa 100%
+        );
+    }
+
+    button, input, select {
+      font-family: inherit;
+    }
+
+    .container {
+      width: min(1180px, 94%);
+      margin: 24px auto 40px;
+    }
+
+    .hero {
+      background:
+        linear-gradient(
+          120deg,
+          var(--navy),
+          var(--blue) 58%,
+          var(--blue2)
+        );
+      color: white;
+      border-radius: 11px;
+      padding: 11px 14px;
+      box-shadow: 0 6px 18px rgba(0,75,135,.14);
+      margin-bottom: 12px;
+    }
+
+    .hero h1 {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 800;
+    }
+
+    .panel {
+      background: white;
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+
+    .setup-grid .panel {
+      border-radius: 11px;
+      padding: 10px;
+      margin-bottom: 0;
+    }
+
+    .setup-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .setup-grid > .panel {
+      min-width: 0;
+    }
+
+    /* Base Run (biru) vs Awal Forecast (oranye) agar mudah dibedakan */
+    .setup-grid > .panel.base-panel {
+      background: #eaf5fc;
+      border: 1.5px solid #79b8de;
+    }
+    .base-panel .section-title { color: var(--navy); }
+    .base-panel input,
+    .base-panel select {
+      border-color: #79b8de;
+      background: #fff;
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .base-panel .run-preview {
+      background: #d6ebf8;
+      color: var(--navy);
+    }
+
+    .setup-grid > .panel.forecast-panel {
+      background: #fff5e6;
+      border: 1.5px solid #f0b866;
+    }
+    .forecast-panel .section-title { color: #9a5a00; }
+    .forecast-panel input,
+    .forecast-panel select {
+      border-color: #e8b66a;
+      background: #fff;
+      font-weight: 700;
+      color: #7a4700;
+    }
+    .forecast-panel input:focus,
+    .forecast-panel select:focus {
+      border-color: var(--orange);
+      box-shadow: 0 0 0 3px rgba(217,119,6,.12);
+    }
+
+    .base-latest-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 9px;
+      flex-wrap: wrap;
+    }
+    .base-latest-btn {
+      border: 1px solid #79b8de;
+      background: #fff;
+      color: var(--navy);
+      border-radius: 8px;
+      padding: 6px 10px;
+      font-size: 11px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .base-latest-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .base-latest-note { font-size: 10px; color: #527087; }
+
+    .section-title {
+      font-size: 12px;
+      font-weight: 800;
+      color: var(--navy);
+      margin-bottom: 9px;
+    }
+
+    .source-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 12px;
+    }
+
+    .source-card {
+      border: 1.5px solid var(--border);
+      background: #fbfdff;
+      border-radius: 10px;
+      padding: 7px 10px;
+      cursor: pointer;
+      transition: .15s ease;
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .source-card:hover {
+      border-color: #8dc4e7;
+      transform: translateY(-1px);
+    }
+
+    .source-card.active {
+      border-color: var(--blue);
+      background: var(--light);
+      box-shadow: 0 0 0 3px rgba(8,123,201,.08);
+    }
+
+    .source-name {
+      font-size: 13px;
+      font-weight: 800;
+      text-align: center;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 9px;
+    }
+
+    .start-forecast-grid {
+      display: grid;
+      grid-template-columns: 1.3fr .85fr .85fr .85fr;
+      gap: 9px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 11px;
+      font-weight: 800;
+      color: #61788b;
+      margin-bottom: 6px;
+    }
+
+    input, select {
+      width: 100%;
+      height: 38px;
+      border: 1px solid #cfdce6;
+      border-radius: 9px;
+      background: white;
+      color: #29475d;
+      padding: 0 10px;
+      font-size: 13px;
+      outline: none;
+    }
+
+    input:focus, select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(8,123,201,.08);
+    }
+
+    .run-preview {
+      margin-top: 12px;
+      padding: 9px 11px;
+      border-radius: 9px;
+      background: #f4f8fb;
+      color: #527087;
+      font-size: 12px;
+    }
+
+    .run-preview strong {
+      color: var(--navy);
+    }
+
+    .duration-grid {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+
+    .duration-btn {
+      border: 1px solid #cfdce6;
+      background: white;
+      color: #416077;
+      border-radius: 8px;
+      padding: 7px 10px;
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .duration-btn.active {
+      background: var(--light);
+      color: #075d92;
+      border-color: #83bee2;
+    }
+
+    .custom-duration {
+      width: 130px;
+      display: none;
+    }
+
+    .custom-duration.show {
+      display: block;
+    }
+
+    .speed-row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin-top: 10px;
+    }
+
+    .speed-label {
+      font-size: 11px;
+      font-weight: 800;
+      color: #61788b;
+      white-space: nowrap;
+    }
+
+    .speed-select {
+      width: auto;
+      min-width: 115px;
+      height: 34px;
+      font-size: 12px;
+      padding: 0 9px;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    .summary-item {
+      background: #f8fafc;
+      border: 1px solid #e5edf3;
+      border-radius: 10px;
+      padding: 10px;
+    }
+
+    .summary-label {
+      font-size: 9px;
+      text-transform: uppercase;
+      letter-spacing: .6px;
+      font-weight: 800;
+      color: #8093a3;
+    }
+
+    .summary-value {
+      margin-top: 3px;
+      font-size: 12px;
+      font-weight: 750;
+      color: #284d67;
+    }
+
+    .actions {
+      display: flex;
+      gap: 9px;
+      margin-top: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      border: 0;
+      border-radius: 10px;
+      padding: 10px 16px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .btn-primary {
+      background: var(--blue);
+      color: white;
+    }
+
+    .btn-primary:hover { background: #066fae; }
+
+    .btn-secondary {
+      background: #eef5f9;
+      color: #31566e;
+      border: 1px solid #d4e3ec;
+    }
+
+    .btn-secondary:disabled,
+    .btn-primary:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .status {
+      margin-top: 12px;
+      min-height: 20px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status.ok { color: var(--green); }
+    .status.error { color: #b91c1c; }
+
+    .progress-wrap {
+      display: none;
+      margin-top: 10px;
+    }
+
+    .progress-track {
+      height: 9px;
+      border-radius: 99px;
+      background: #e7edf2;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0;
+      background: var(--blue);
+      transition: width .2s ease;
+    }
+
+    .progress-text {
+      margin-top: 5px;
+      font-size: 10px;
+      color: #6e8799;
+    }
+
+    .preview-box {
+      min-height: 260px;
+      border: 1px dashed #cbdce8;
+      border-radius: 13px;
+      background: #f8fbfd;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+
+    .preview-box img {
+      display: block;
+      max-width: 100%;
+      max-height: 620px;
+      height: auto;
+    }
+
+    .preview-placeholder {
+      padding: 45px 20px;
+      text-align: center;
+      color: #8aa0af;
+      font-size: 12px;
+    }
+
+    .preview-info {
+      display: none;
+      margin-top: 10px;
+      padding: 9px 11px;
+      background: var(--green-light);
+      border: 1px solid #ccebd9;
+      color: #277047;
+      border-radius: 9px;
+      font-size: 11px;
+    }
+
+    @media (max-width: 820px) {
+      .form-grid {
+        grid-template-columns: repeat(2, minmax(0,1fr));
+      }
+
+      .summary {
+        grid-template-columns: repeat(2, minmax(0,1fr));
+      }
+    }
+
+    @media (max-width: 560px) {
+      .container {
+        width: 95%;
+        margin-top: 14px;
+      }
+
+      .hero {
+        padding: 18px;
+      }
+
+      .hero h1 {
+        font-size: 21px;
+      }
+
+      .setup-grid,
+      .source-grid,
+      .form-grid,
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .panel {
+        padding: 14px;
+      }
+
+      .setup-grid .panel {
+        padding: 11px;
+      }
+
+      .start-forecast-grid {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    /* PRAKSAR: compact date/hour controls and folder selection */
+    .praksar-date-grid { display:grid; grid-template-columns: minmax(145px, 190px) 100px minmax(120px,170px) minmax(145px,190px) 100px minmax(145px,190px) 100px; gap:9px; align-items:end; }
+    .praksar-date-grid .field { min-width:0; }
+    .praksar-date-grid input, .praksar-date-grid select { height:34px; padding:0 8px; }
+
+    /* Base Run dibuat berbeda secara visual dari periode Start–End */
+    .praksar-base-field {
+      background: #eaf5fc;
+      border: 1px solid #9bcce9;
+      border-radius: 9px;
+      padding: 7px;
+    }
+    .praksar-base-field label {
+      color: var(--navy);
+    }
+    .praksar-base-field input,
+    .praksar-base-field select {
+      border-color: #79b8de;
+      background: #fff;
+      font-weight: 700;
+      color: var(--navy);
+    }
+    .praksar-base-field input:focus,
+    .praksar-base-field select:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(8,123,201,.10);
+    }
+    .folder-heading { display:flex; gap:9px; flex-wrap:wrap; align-items:center; }
+    .folder-toggle { border:0; background:transparent; color:var(--blue); font-size:11px; font-weight:bold; cursor:pointer; }
+    .folder-options { display:flex; flex-wrap:wrap; gap:7px; margin-top:9px; }
+    .folder-options label { display:inline-flex; align-items:center; gap:6px; border:1px solid var(--border); background:white; padding:6px 10px; border-radius:7px; cursor:pointer; font-size:12px; font-weight:700; }
+    .folder-options input { width:15px; height:15px; margin:0; accent-color:var(--blue); }
+    @media(max-width:1000px) { .praksar-date-grid { grid-template-columns: minmax(140px,1fr) 105px; } }
+    @media(max-width:400px) { .praksar-date-grid { grid-template-columns: minmax(0,1fr) 95px; } }
+
+    /* Date text DD/MM/YYYY tetap tersedia bersama kalender native */
+    .praksar-date-picker { position:relative; display:flex; align-items:center; min-width:0; }
+    .praksar-date-picker > input[type="text"] { width:100%; padding-right:38px; }
+    .praksar-calendar-btn { position:absolute; right:3px; top:3px; height:28px; width:30px; border:0; border-radius:6px; background:#edf5fc; color:#075d92; cursor:pointer; font-size:16px; z-index:1; }
+    .praksar-calendar-btn:hover { background:#d9ebf9; }
+    .praksar-date-picker > .praksar-native-date { position:absolute; right:3px; top:3px; width:30px; height:28px; opacity:0; pointer-events:none; padding:0; border:0; }
+    /* Kalender mandiri PRAKSAR, kompatibel dengan iframe Apps Script */
+    .praksar-date-picker { overflow:visible; }
+    .praksar-calendar-popup { position:absolute; z-index:1000; top:calc(100% + 5px); left:0; width:265px; max-width:90vw; padding:12px; background:#fff; border:1px solid #b5d6e9; border-radius:11px; box-shadow:0 10px 30px rgba(15,60,100,.22); }
+    .praksar-cal-head { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:9px; color:var(--navy); font-size:13px; }
+    .praksar-cal-head button { width:29px; height:29px; border:0; border-radius:6px; background:#eaf5fc; color:var(--navy); cursor:pointer; font-size:20px; }
+    .praksar-cal-days { display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:3px; text-align:center; }
+    .praksar-cal-week { font-size:10px; font-weight:bold; color:#73899a; padding:7px 0; }
+    .praksar-cal-day { width:100%; height:29px; border:0; border-radius:6px; background:#fff; color:#29475d; cursor:pointer; font-size:12px; }
+    .praksar-cal-day:hover { background:#eaf5fc; }
+    .praksar-cal-day.selected { background:var(--blue); color:#fff; font-weight:bold; }
+  </style>
+</head>
+
+<body>
+<div class="container">
+
+  <div class="hero">
+    <h1><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 22 22" fill="none" stroke="#00ff00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-image-play preview-icon"><path d="M15 15.003a1 1 0 0 1 1.517-.859l4.997 2.997a1 1 0 0 1 0 1.718l-4.997 2.997a1 1 0 0 1-1.517-.86z"/><path d="M21 12.17V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h6"/><path d="m6 21 5-5"/><circle cx="9" cy="9" r="2"/></svg> GIF Generator</h1>
+  </div>
+
+  <!-- =========================================================
+       1. SOURCE
+       ========================================================= -->
+  <div class="panel">
+    <div class="section-title">1. Pilih Sumber Data</div>
+
+    <div class="source-grid">
+      <div class="source-card" id="sourceCAWO"
+           onclick="selectSource('cawo')">
+        <div class="source-name">CAWO</div>
+      </div>
+
+      <div class="source-card" id="sourceINAWAVES"
+           onclick="selectSource('inawaves')">
+        <div class="source-name">INAWAVES</div>
+      </div>
+
+      <div class="source-card" id="sourcePRAKSAR"
+           onclick="selectSource('praksar')">
+        <div class="source-name">PRAKSAR</div>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- =========================================================
+       2A. FORM GIF: CAWO / INAWAVES
+       ========================================================= -->
+  <div id="gifConfig">
+
+    <div class="setup-grid">
+
+      <div class="panel base-panel">
+        <div class="section-title">2. Base Run</div>
+
+        <div class="form-grid">
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="baseDate">
+          </div>
+
+          <div class="field">
+            <label>Jam</label>
+            <select id="baseHour">
+              <option value="00">00 UTC</option>
+              <option value="12">12 UTC</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="run-preview">
+          Base Run: <strong id="baseRunText">-</strong>
+        </div>
+
+        <div class="base-latest-row">
+          <button type="button" class="base-latest-btn" id="latestBaseBtn"
+                  onclick="loadLatestBaseRun(true)">↻ Base Run terbaru</button>
+          <span class="base-latest-note" id="latestBaseNote"></span>
+        </div>
+      </div>
+
+
+      <div class="panel forecast-panel">
+        <div class="section-title">3. Awal Forecast</div>
+
+        <div class="start-forecast-grid">
+          <div class="field">
+            <label>Tanggal</label>
+            <input type="date" id="startDate">
+          </div>
+
+          <div class="field">
+            <label>Jam</label>
+            <select id="startHour"></select>
+          </div>
+
+          <div class="field">
+            <label>Speed</label>
+            <select id="speedSelect">
+              <option value="100">100 ms</option>
+              <option value="250">250 ms</option>
+              <option value="500">500 ms</option>
+              <option value="750">750 ms</option>
+              <option value="1000">1000 ms</option>
+              <option value="1500">1500 ms</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Parameter</label>
+            <select id="paramSelect"></select>
+          </div>
+        </div>
+      </div>
+
+
+      <div class="panel" style="grid-column: 1 / -1;">
+        <div class="section-title">4. Durasi Forecast</div>
+
+        <div class="duration-grid">
+          <button class="duration-btn active" data-hours="24"
+                  onclick="selectDuration(24,this)">24 jam</button>
+
+          <button class="duration-btn" data-hours="72"
+                  onclick="selectDuration(72,this)">72 jam</button>
+
+          <button class="duration-btn" data-hours="96"
+                  onclick="selectDuration(96,this)">96 jam</button>
+
+          <button class="duration-btn" data-hours="120"
+                  onclick="selectDuration(120,this)">120 jam</button>
+
+          <button class="duration-btn" data-hours="144"
+                  onclick="selectDuration(144,this)">144 jam</button>
+
+          <button class="duration-btn" data-hours="custom"
+                  onclick="selectCustom(this)">Custom</button>
+
+          <input class="custom-duration" id="customDuration"
+                 type="number" min="1" max="540"
+                 placeholder="Jam">
+        </div>
+
+        <div class="summary">
+          <div class="summary-item">
+            <div class="summary-label">Sumber</div>
+            <div class="summary-value" id="summarySource">CAWO</div>
+          </div>
+
+          <div class="summary-item">
+            <div class="summary-label">Interval</div>
+            <div class="summary-value" id="summaryInterval">1 jam</div>
+          </div>
+
+          <div class="summary-item">
+            <div class="summary-label">Speed GIF</div>
+            <div class="summary-value" id="summarySpeed">250 ms/frame</div>
+          </div>
+
+          <div class="summary-item">
+            <div class="summary-label">Jumlah Frame</div>
+            <div class="summary-value" id="summaryFrames">24 frame</div>
+          </div>
+        </div>
+
+        <div class="actions">
+          <button class="btn btn-primary" id="previewBtn"
+                  onclick="generateGif(false)">
+            ▶ Preview GIF
+          </button>
+
+          <button class="btn btn-secondary" id="downloadBtn"
+                  onclick="generateGif(true)" disabled>
+            ↓ Download GIF
+          </button>
+
+          <button class="btn btn-secondary" id="downloadMp4Btn"
+                  onclick="generateMp4()" disabled>
+            ↓ Download MP4
+          </button>
+        </div>
+
+        <div class="progress-wrap" id="progressWrap">
+          <div class="progress-track">
+            <div class="progress-bar" id="progressBar"></div>
+          </div>
+          <div class="progress-text" id="progressText">Menyiapkan...</div>
+        </div>
+
+        <div class="status" id="status"></div>
+      </div>
+
+    </div>
+
+    <div class="panel">
+      <div class="section-title">5. Preview GIF</div>
+
+      <div class="preview-box" id="previewBox">
+        <div class="preview-placeholder">
+          Preview GIF akan muncul di sini setelah proses selesai.
+        </div>
+      </div>
+
+      <div class="preview-info" id="previewInfo"></div>
+    </div>
+
+  </div>
+
+
+  <!-- =========================================================
+       2B. FORM PRAKSAR
+       ========================================================= -->
+  <div id="praksarConfig" style="display:none;">
+
+    <div class="panel">
+      <div class="section-title">2. Pengaturan PRAKSAR</div>
+
+      <div class="praksar-date-grid">
+
+        <div class="field praksar-base-field">
+          <label>BASE RUN</label>
+          <div class="praksar-date-picker"><input type="text" id="praksarBaseDate" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" autocomplete="off"><button type="button" class="praksar-calendar-btn" aria-label="Pilih tanggal Base" onclick="openPraksarCalendar('praksarBaseDate')">&#128197;</button><input type="date" class="praksar-native-date" id="praksarBaseDateCalendar" tabindex="-1" aria-label="Kalender Base"></div>
+        </div>
+
+        <div class="field praksar-base-field">
+          <label>BASE RUN</label>
+          <select id="praksarBaseHour">
+            <option value="00">00 UTC</option>
+            <option value="06">06 UTC</option>
+            <option value="12" selected>12 UTC</option>
+            <option value="18">18 UTC</option>
+          </select>
+        </div>
+
+        <div class="field praksar-base-field">
+          <label>KAPAL</label>
+          <select id="praksarShip" disabled>
+            <option value="">Memuat kapal...</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Start Date</label>
+          <div class="praksar-date-picker"><input type="text" id="praksarStartDate" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" autocomplete="off"><button type="button" class="praksar-calendar-btn" aria-label="Pilih tanggal Start" onclick="openPraksarCalendar('praksarStartDate')">&#128197;</button><input type="date" class="praksar-native-date" id="praksarStartDateCalendar" tabindex="-1" aria-label="Kalender Start"></div>
+        </div>
+
+        <div class="field">
+          <label>Start Hour</label>
+          <select id="praksarStartHour"></select>
+        </div>
+
+        <div class="field">
+          <label>End Date</label>
+          <div class="praksar-date-picker"><input type="text" id="praksarEndDate" inputmode="numeric" maxlength="10" placeholder="DD/MM/YYYY" autocomplete="off"><button type="button" class="praksar-calendar-btn" aria-label="Pilih tanggal End" onclick="openPraksarCalendar('praksarEndDate')">&#128197;</button><input type="date" class="praksar-native-date" id="praksarEndDateCalendar" tabindex="-1" aria-label="Kalender End"></div>
+        </div>
+
+        <div class="field">
+          <label>End Hour</label>
+          <select id="praksarEndHour"></select>
+        </div>
+
+      </div>
+
+      <div class="run-preview">
+        Base Run:
+        <strong id="praksarBaseRunText">-</strong>
+        &nbsp; | &nbsp;
+        Periode:
+        <strong id="praksarPeriodText">-</strong>
+      </div>
+
+      <div class="summary">
+        <div class="summary-item">
+          <div class="summary-label">Sumber</div>
+          <div class="summary-value">PRAKSAR</div>
+        </div>
+
+        <div class="summary-item">
+          <div class="summary-label">Interval</div>
+          <div class="summary-value">3 jam</div>
+        </div>
+
+        <div class="summary-item">
+          <div class="summary-label">Folder</div>
+          <div class="summary-value" id="praksarFolderCount">6 folder</div>
+        </div>
+
+        <div class="summary-item">
+          <div class="summary-label">Output</div>
+          <div class="summary-value">ZIP gambar</div>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button class="btn btn-primary" id="praksarDownloadBtn"
+                onclick="downloadPraksar()">
+          ↓ Download Gambar PRAKSAR
+        </button>
+      </div>
+
+      <div class="progress-wrap" id="praksarProgressWrap">
+        <div class="progress-track">
+          <div class="progress-bar" id="praksarProgressBar"></div>
+        </div>
+        <div class="progress-text" id="praksarProgressText">
+          Menyiapkan...
+        </div>
+      </div>
+
+      <div class="status" id="praksarStatus"></div>
+
+      <div class="run-preview" style="margin-top:10px;">
+        <div class="folder-heading"><strong>Folder yang diproses (pilih sesuai kebutuhan):</strong>
+          <button type="button" class="folder-toggle" onclick="togglePraksarFolders(true)">Pilih semua</button>
+          <button type="button" class="folder-toggle" onclick="togglePraksarFolders(false)">Hapus pilihan</button>
+        </div>
+        <div class="folder-options" id="praksarFolders">
+          <label><input type="checkbox" value="ws" checked> ws</label>
+          <label><input type="checkbox" value="swh" checked> swh</label>
+          <label><input type="checkbox" value="csdk_0m" checked> csdk_0m</label>
+          <label><input type="checkbox" value="csdk_10m" checked> csdk_10m</label>
+          <label><input type="checkbox" value="csdk_20m" checked> csdk_20m</label>
+          <label><input type="checkbox" value="csdk_30m" checked> csdk_30m</label>
+        </div>
+      </div>
+
+    </div>
+
+  </div>
+
+</div>
+
+
+<script>
+  const CONFIG = {
+    cawo: {
+      label: 'CAWO',
+      interval: 1,
+      defaultSpeed: 250,
+      base: 'https://maritim.bmkg.go.id/render-static/inacawowave',
+      params: ['swh', 'mwh', 'ws', 'wg', 'psh', 'psp', 'sl', 'wml', 'wmp', 'wpl', 'wsh', 'wsp']
+    },
+
+    inawaves: {
+      label: 'INAWAVES',
+      interval: 3,
+      defaultSpeed: 500,
+      base: 'https://maritim.bmkg.go.id/render-static/inawaves-ensemble',
+      params: ['swh', 'mwh', 'ws', 'psh', 'psp', 'wml', 'wmp', 'wsh', 'wsp']
+    }
+  };
+
+  // Jumlah gambar per batch request dari frontend ke Apps Script
+  const FRONTEND_BATCH_SIZE = 5;
+  const FRONTEND_BATCH_DELAY_MS = 300;
+
+
+  let selectedSource = null;
+  let selectedParam = 'swh';
+  let selectedDuration = 24;
+  let selectedSpeed = 250;
+
+  let lastFrames = null; // cache frame hasil fetch (dipakai GIF & MP4)
+  let lastGifBlob = null;
+  let lastGifUrl = null;
+
+
+  function pad2(n) {
+    return String(n).padStart(2, '0');
+  }
+
+
+  function formatDateInput(date) {
+    return (
+      date.getFullYear() + '-' +
+      pad2(date.getMonth() + 1) + '-' +
+      pad2(date.getDate())
+    );
+  }
+
+
+  function initHourSelect(id, defaultHour) {
+    const select = document.getElementById(id);
+
+    select.innerHTML = '';
+
+    for (let h = 0; h < 24; h++) {
+      const option = document.createElement('option');
+
+      option.value = pad2(h);
+      option.textContent = pad2(h) + ' UTC';
+
+      select.appendChild(option);
+    }
+
+    select.value = defaultHour;
+  }
+
+
+  function init() {
+    const now = new Date();
+
+    const today = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate()
+    );
+
+    const tomorrow = new Date(today.getTime() + 24 * 3600000);
+
+    const todayText = formatDateInput(today);
+    const tomorrowText = formatDateInput(tomorrow);
+
+
+    // ---------------------------------------------------------
+    // GIF source defaults — tetap seperti aplikasi lama.
+    // ---------------------------------------------------------
+    document.getElementById('baseDate').value = todayText;
+    document.getElementById('startDate').value = todayText;
+
+    initHourSelect('startHour', '00');
+
+    document.getElementById('speedSelect').value =
+      String(selectedSpeed);
+
+
+    // ---------------------------------------------------------
+    // PRAKSAR defaults:
+    // Base Run = H-1 / hari sebelumnya 12 UTC
+    // Start    = hari ini 03 UTC
+    // End      = besok 12 UTC
+    // ---------------------------------------------------------
+    const praksarBaseDate = new Date(today.getTime());
+    praksarBaseDate.setDate(praksarBaseDate.getDate() - 1);
+    const praksarBaseDateText = formatDateInput(praksarBaseDate);
+
+    document.getElementById('praksarBaseDate').value =
+      toPraksarDisplayDate(praksarBaseDateText);
+    document.getElementById('praksarBaseHour').value = '12';
+
+    document.getElementById('praksarStartDate').value = toPraksarDisplayDate(todayText);
+    initHourSelect('praksarStartHour', '03');
+
+    document.getElementById('praksarEndDate').value = toPraksarDisplayDate(tomorrowText);
+    initHourSelect('praksarEndHour', '12');
+
+
+    // Event GIF
+    document.getElementById('baseDate')
+      .addEventListener('change', updateSummary);
+
+    document.getElementById('baseHour')
+      .addEventListener('change', updateSummary);
+
+    document.getElementById('startDate')
+      .addEventListener('change', updateSummary);
+
+    document.getElementById('startHour')
+      .addEventListener('change', updateSummary);
+
+    document.getElementById('customDuration')
+      .addEventListener('input', updateSummary);
+
+    document.getElementById('speedSelect')
+      .addEventListener('change', function() {
+        selectedSpeed = Number(this.value);
+        updateSummary();
+        clearPreview();
+      });
+
+    document.getElementById('paramSelect')
+      .addEventListener('change', function() {
+        selectedParam = this.value || 'swh';
+        updateSummary();
+        clearPreview();
+      });
+
+
+    // Event PRAKSAR
+    setupPraksarCalendar();
+    document.querySelectorAll('#praksarFolders input[type="checkbox"]').forEach(function(input) {
+      input.addEventListener('change', updatePraksarSummary);
+    });
+    [
+      'praksarBaseDate',
+      'praksarBaseHour',
+      'praksarShip',
+      'praksarStartDate',
+      'praksarStartHour',
+      'praksarEndDate',
+      'praksarEndHour'
+    ].forEach(function(id) {
+      document.getElementById(id)
+        .addEventListener('change', updatePraksarSummary);
+    });
+
+
+    // Muat daftar kapal PRAKSAR dari server.
+    loadPraksarShips();
+
+    // Saat pertama kali dibuka hanya pilihan sumber yang tampil.
+    document.getElementById('gifConfig').style.display = 'none';
+    document.getElementById('praksarConfig').style.display = 'none';
+
+    updateSummary();
+    updatePraksarSummary();
+  }
+
+
+  function initParamSelect(source) {
+    const cfg = CONFIG[source];
+    const select = document.getElementById('paramSelect');
+    const list = (cfg && cfg.params) ? cfg.params : ['swh'];
+    const prev = selectedParam;
+
+    select.innerHTML = '';
+
+    for (let i = 0; i < list.length; i++) {
+      const option = document.createElement('option');
+      option.value = list[i];
+      option.textContent = list[i];
+      select.appendChild(option);
+    }
+
+    selectedParam = list.indexOf(prev) !== -1 ? prev : list[0];
+    select.value = selectedParam;
+  }
+
+
+  function selectSource(source) {
+    selectedSource = source;
+
+
+    const isPraksar = source === 'praksar';
+
+    document.getElementById('sourceCAWO')
+      .classList.toggle('active', source === 'cawo');
+
+    document.getElementById('sourceINAWAVES')
+      .classList.toggle('active', source === 'inawaves');
+
+    document.getElementById('sourcePRAKSAR')
+      .classList.toggle('active', isPraksar);
+
+
+    document.getElementById('gifConfig').style.display =
+      isPraksar ? 'none' : 'block';
+
+    document.getElementById('praksarConfig').style.display =
+      isPraksar ? 'block' : 'none';
+
+
+    if (!isPraksar) {
+      selectedSpeed = CONFIG[source].defaultSpeed;
+
+      document.getElementById('speedSelect').value =
+        String(selectedSpeed);
+
+      initParamSelect(source);
+      updateSummary();
+      clearPreview();
+      loadLatestBaseRun(false);
+    } else {
+      clearPraksarStatus();
+      updatePraksarSummary();
+    }
+  }
+
+
+  // ============================================================
+  // BASE RUN TERBARU (CAWO / INAWAVES)
+  // ============================================================
+
+  let latestBaseRequestId = 0;
+
+  function loadLatestBaseRun(manual) {
+    if (!selectedSource || selectedSource === 'praksar') return;
+
+    const source = selectedSource;
+    const requestId = ++latestBaseRequestId;
+    const btn = document.getElementById('latestBaseBtn');
+    const note = document.getElementById('latestBaseNote');
+
+    btn.disabled = true;
+    note.textContent = 'Mencari Base Run terbaru...';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        // Abaikan hasil lama bila sumber sudah berganti.
+        if (requestId !== latestBaseRequestId || source !== selectedSource) return;
+
+        btn.disabled = false;
+
+        if (!result || !result.baseRun) {
+          if (result && result.blocked) {
+            note.textContent =
+              'Akses otomatis diblokir BMKG/Cloudflare (HTTP 403). Atur manual atau gunakan BMKG_PROXY_URL.';
+          } else if (result && result.error) {
+            note.textContent =
+              'Gagal cek Base Run terbaru (' + result.error + '). Atur manual.';
+          } else {
+            note.textContent =
+              'Base Run terbaru tidak ditemukan. Atur manual.';
+          }
+          return;
+        }
+
+        const v = result.baseRun; // YYYYMMDDHH (UTC)
+
+        document.getElementById('baseDate').value =
+          v.substring(0, 4) + '-' + v.substring(4, 6) + '-' + v.substring(6, 8);
+
+        document.getElementById('baseHour').value = v.substring(8, 10);
+
+        note.textContent = 'Terbaru di web: ' + v + ' UTC';
+
+        updateSummary();
+        clearPreview();
+      })
+      .withFailureHandler(function(err) {
+        if (requestId !== latestBaseRequestId) return;
+
+        console.error(err);
+        btn.disabled = false;
+        note.textContent =
+          'Gagal mencari Base Run terbaru: ' + (err.message || err);
+      })
+      .getLatestBaseRun(source);
+  }
+
+
+  // ============================================================
+  // GIF EXISTING LOGIC
+  // ============================================================
+
+  function selectDuration(hours, button) {
+    selectedDuration = hours;
+
+    document.querySelectorAll('.duration-btn')
+      .forEach(function(btn) {
+        btn.classList.remove('active');
+      });
+
+    button.classList.add('active');
+
+    document.getElementById('customDuration')
+      .classList.remove('show');
+
+    updateSummary();
+  }
+
+
+  function selectCustom(button) {
+    document.querySelectorAll('.duration-btn')
+      .forEach(function(btn) {
+        btn.classList.remove('active');
+      });
+
+    button.classList.add('active');
+
+    document.getElementById('customDuration')
+      .classList.add('show');
+
+    document.getElementById('customDuration').focus();
+
+    selectedDuration = 'custom';
+
+    updateSummary();
+  }
+
+
+  function getDuration() {
+    if (selectedDuration === 'custom') {
+      const value =
+        Number(document.getElementById('customDuration').value);
+
+      if (!Number.isFinite(value) || value < 1) {
+        throw new Error('Masukkan durasi custom yang valid.');
+      }
+
+      return Math.floor(value);
+    }
+
+    return selectedDuration;
+  }
+
+
+  function getBaseRun() {
+    const date =
+      document.getElementById('baseDate').value;
+
+    const hour =
+      document.getElementById('baseHour').value;
+
+    if (!date) {
+      throw new Error('Tanggal Base Run belum dipilih.');
+    }
+
+    const parts = date.split('-');
+
+    return {
+      year: parts[0],
+      month: parts[1],
+      day: parts[2],
+      hour: hour,
+      value:
+        parts[0] +
+        parts[1] +
+        parts[2] +
+        hour
+    };
+  }
+
+
+  function getStartDateTime() {
+    const date =
+      document.getElementById('startDate').value;
+
+    const hour =
+      document.getElementById('startHour').value;
+
+    if (!date) {
+      throw new Error('Tanggal awal SWH belum dipilih.');
+    }
+
+    const parts = date.split('-');
+
+    return new Date(Date.UTC(
+      Number(parts[0]),
+      Number(parts[1]) - 1,
+      Number(parts[2]),
+      Number(hour),
+      0,
+      0
+    ));
+  }
+
+
+  function updateSummary() {
+    if (!selectedSource || selectedSource === 'praksar') return;
+
+    try {
+      const cfg = CONFIG[selectedSource];
+      const duration = getDuration();
+
+      document.getElementById('summarySource').textContent =
+        cfg.label;
+
+      document.getElementById('summaryInterval').textContent =
+        cfg.interval + ' jam';
+
+      document.getElementById('summarySpeed').textContent =
+        selectedSpeed + ' ms/frame';
+
+      const frames =
+        Math.ceil(duration / cfg.interval);
+
+      document.getElementById('summaryFrames').textContent =
+        frames + ' frame';
+
+      const base = getBaseRun();
+
+      document.getElementById('baseRunText').textContent =
+        base.value + ' UTC';
+
+    } catch (err) {
+      document.getElementById('baseRunText').textContent = '-';
+    }
+  }
+
+
+  function buildUrls() {
+    const cfg = CONFIG[selectedSource];
+    const base = getBaseRun();
+    const start = getStartDateTime();
+    const duration = getDuration();
+
+    const urls = [];
+    const timestamps = [];
+
+
+    for (
+      let elapsed = 0;
+      elapsed < duration;
+      elapsed += cfg.interval
+    ) {
+      const dt =
+        new Date(start.getTime() + elapsed * 3600000);
+
+      const y = dt.getUTCFullYear();
+      const m = pad2(dt.getUTCMonth() + 1);
+      const d = pad2(dt.getUTCDate());
+      const h = pad2(dt.getUTCHours());
+
+      const timestamp =
+        String(y) + m + d + h;
+
+
+      const url =
+        cfg.base + '/' +
+        base.year + '/' +
+        base.month + '/' +
+        base.value +
+        (
+          selectedSource === 'cawo'
+            ? '/metwilpro/indonesia/'
+            : '/gfs/indonesia/'
+        ) +
+        selectedParam + '_' + timestamp + '.png';
+
+
+      urls.push(url);
+      timestamps.push(timestamp);
+    }
+
+
+    return {
+      urls: urls,
+      timestamps: timestamps,
+      duration: duration,
+      interval: cfg.interval,
+      frameDuration: selectedSpeed,
+      baseRun: base.value,
+      startTime: start
+    };
+  }
+
+
+  function setProgress(value, text) {
+    document.getElementById('progressBar').style.width =
+      Math.max(0, Math.min(100, value)) + '%';
+
+    document.getElementById('progressText').textContent =
+      text;
+  }
+
+
+  function setBusy(busy) {
+    document.getElementById('previewBtn').disabled = busy;
+
+    document.getElementById('downloadBtn').disabled =
+      busy || !lastGifBlob;
+
+    document.getElementById('downloadMp4Btn').disabled =
+      busy || !lastGifBlob;
+  }
+
+
+  function setStatus(text, type) {
+    const el = document.getElementById('status');
+
+    el.textContent = text;
+
+    el.className =
+      'status' + (type ? ' ' + type : '');
+  }
+
+
+  function clearPreview() {
+    lastGifBlob = null;
+
+    if (lastGifUrl) {
+      URL.revokeObjectURL(lastGifUrl);
+      lastGifUrl = null;
+    }
+
+    document.getElementById('downloadBtn').disabled = true;
+    document.getElementById('downloadMp4Btn').disabled = true;
+    lastFrames = null;
+
+    document.getElementById('previewBox').innerHTML =
+      '<div class="preview-placeholder">' +
+      'Preview GIF akan muncul di sini setelah proses selesai.' +
+      '</div>';
+
+    document.getElementById('previewInfo').style.display =
+      'none';
+  }
+
+
+  async function getFrames(plan) {
+    const key = plan.urls.join('\n');
+
+    if (lastFrames && lastFrames.key === key) {
+      return lastFrames.results;
+    }
+
+    const results = await fetchImages(plan);
+    lastFrames = { key: key, results: results };
+
+    return results;
+  }
+
+
+  async function fetchBatchFromServer(batchUrls, maxRetries) {
+    const retries = maxRetries || 3;
+    let lastErr = null;
+
+    for (let attempt = 1; attempt <= retries; attempt++) {
+      try {
+        return await new Promise(function(resolve, reject) {
+          google.script.run
+            .withSuccessHandler(resolve)
+            .withFailureHandler(reject)
+            .fetchSwhImages(batchUrls);
+        });
+      } catch (err) {
+        lastErr = err;
+        if (attempt < retries) {
+          await new Promise(function(res) {
+            setTimeout(res, 500 * attempt);
+          });
+        }
+      }
+    }
+
+    throw lastErr;
+  }
+
+
+  function formatNoImagesError(results) {
+    const sample = results && results[0];
+    const hasBlocked = (results || []).some(function(item) {
+      return item && item.status === 403;
+    });
+
+    const detail = sample
+      ? ' (' + (sample.error || ('HTTP ' + sample.status)) + ' — ' + sample.url + ')'
+      : '';
+
+    if (hasBlocked) {
+      return (
+        'Server BMKG/Cloudflare menolak akses dari Google Apps Script (HTTP 403). ' +
+        'Atur Script Property "BMKG_PROXY_URL" di Apps Script atau jalankan skrip lokal DownloadGIF.' +
+        detail
+      );
+    }
+
+    return (
+      'Tidak ada image yang berhasil diunduh. ' +
+      'Periksa Base Run dan tanggal awal forecast.' + detail
+    );
+  }
+
+
+  async function fetchImages(plan) {
+    const urls = plan.urls;
+    const total = urls.length;
+    const allResults = [];
+
+    for (let i = 0; i < total; i += FRONTEND_BATCH_SIZE) {
+      const batchUrls = urls.slice(i, i + FRONTEND_BATCH_SIZE);
+      const startNum = i + 1;
+      const endNum = Math.min(i + FRONTEND_BATCH_SIZE, total);
+
+      setProgress(
+        10 + (i / total) * 20,
+        'Mengunduh frame ' + startNum + '–' + endNum + ' dari ' + total + '...'
+      );
+
+      try {
+        const batchResults = await fetchBatchFromServer(batchUrls);
+
+        for (let j = 0; j < batchResults.length; j++) {
+          const item = batchResults[j];
+          item.index = i + j;
+          allResults.push(item);
+        }
+      } catch (err) {
+        console.error('Batch ' + startNum + '-' + endNum + ' gagal:', err);
+        for (let j = 0; j < batchUrls.length; j++) {
+          allResults.push({
+            index: i + j,
+            url: batchUrls[j],
+            ok: false,
+            status: 0,
+            error: (err && err.message) ? err.message : String(err)
+          });
+        }
+      }
+
+      if (i + FRONTEND_BATCH_SIZE < total && FRONTEND_BATCH_DELAY_MS > 0) {
+        await new Promise(function(res) {
+          setTimeout(res, FRONTEND_BATCH_DELAY_MS);
+        });
+      }
+    }
+
+    return allResults;
+  }
+
+
+  function base64ToBlob(base64, contentType) {
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    return new Blob([bytes], {
+      type: contentType || 'image/png'
+    });
+  }
+
+
+  async function blobToImage(blob) {
+    return await new Promise(function(resolve, reject) {
+      const url = URL.createObjectURL(blob);
+      const img = new Image();
+
+      img.onload = function() {
+        URL.revokeObjectURL(url);
+        resolve(img);
+      };
+
+      img.onerror = function() {
+        URL.revokeObjectURL(url);
+        reject(new Error('Gagal membaca image.'));
+      };
+
+      img.src = url;
+    });
+  }
+
+
+  async function createGif(results, frameDuration) {
+    const valid =
+      results
+        .filter(function(item) {
+          return item.ok;
+        })
+        .sort(function(a, b) {
+          return a.index - b.index;
+        });
+
+
+    if (!valid.length) {
+      throw new Error(formatNoImagesError(results));
+    }
+
+
+    if (valid.length < results.length) {
+      setStatus(
+        valid.length + ' dari ' +
+        results.length +
+        ' frame berhasil. Frame yang tidak tersedia dilewati.',
+        ''
+      );
+    }
+
+
+    const firstBlob =
+      base64ToBlob(
+        valid[0].base64,
+        valid[0].contentType
+      );
+
+
+    const firstImage =
+      await blobToImage(firstBlob);
+
+
+    const width =
+      firstImage.naturalWidth ||
+      firstImage.width;
+
+    const height =
+      firstImage.naturalHeight ||
+      firstImage.height;
+
+
+    const workerCode =
+      await new Promise(function(resolve, reject) {
+        google.script.run
+          .withSuccessHandler(resolve)
+          .withFailureHandler(reject)
+          .getGifWorkerScript();
+      });
+
+
+    const workerBlob =
+      new Blob(
+        [workerCode],
+        { type: 'application/javascript' }
+      );
+
+
+    const workerUrl =
+      URL.createObjectURL(workerBlob);
+
+
+    const gif = new GIF({
+      workers: 2,
+      quality: 10,
+      width: width,
+      height: height,
+      workerScript: workerUrl
+    });
+
+
+    for (let i = 0; i < valid.length; i++) {
+      const item = valid[i];
+
+      setProgress(
+        30 + (i / valid.length) * 55,
+        'Menyusun GIF: frame ' +
+        (i + 1) + ' / ' + valid.length
+      );
+
+
+      const blob =
+        base64ToBlob(
+          item.base64,
+          item.contentType
+        );
+
+
+      const img =
+        await blobToImage(blob);
+
+
+      const canvas =
+        document.createElement('canvas');
+
+      canvas.width = width;
+      canvas.height = height;
+
+
+      const ctx =
+        canvas.getContext('2d');
+
+      // Komposit background putih (sama seperti DownloadGIF) agar PNG transparan rapi di GIF.
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.drawImage(
+        img,
+        0,
+        0,
+        width,
+        height
+      );
+
+
+      gif.addFrame(
+        canvas,
+        {
+          delay: frameDuration,
+          copy: true
+        }
+      );
+    }
+
+
+    return await new Promise(function(resolve, reject) {
+
+      gif.on('progress', function(p) {
+        setProgress(
+          85 + p * 15,
+          'Finalisasi GIF: ' +
+          Math.round(p * 100) + '%'
+        );
+      });
+
+
+      gif.on('finished', function(blob) {
+        URL.revokeObjectURL(workerUrl);
+        resolve(blob);
+      });
+
+
+      gif.on('abort', function() {
+        URL.revokeObjectURL(workerUrl);
+        reject(
+          new Error('Proses GIF dibatalkan.')
+        );
+      });
+
+
+      gif.render();
+    });
+  }
+
+
+  async function generateGif(downloadAfter) {
+    setBusy(true);
+
+    document.getElementById('progressWrap')
+      .style.display = 'block';
+
+    setProgress(
+      2,
+      'Menyiapkan daftar frame...'
+    );
+
+    setStatus('');
+
+
+    try {
+      const plan = buildUrls();
+
+
+      if (plan.urls.length > 180) {
+        throw new Error(
+          'Jumlah frame menjadi ' +
+          plan.urls.length +
+          '. Kurangi durasi agar maksimal 180 frame.'
+        );
+      }
+
+
+      setProgress(
+        10,
+        'Mengunduh ' +
+        plan.urls.length +
+        ' frame (5 per batch)...'
+      );
+
+
+      const results =
+        await getFrames(plan);
+
+
+      setProgress(
+        30,
+        'Download selesai. Membuat GIF...'
+      );
+
+
+      const blob =
+        await createGif(
+          results,
+          plan.frameDuration
+        );
+
+
+      lastGifBlob = blob;
+
+
+      if (lastGifUrl) {
+        URL.revokeObjectURL(lastGifUrl);
+      }
+
+
+      lastGifUrl =
+        URL.createObjectURL(blob);
+
+
+      const previewBox =
+        document.getElementById('previewBox');
+
+      previewBox.innerHTML = '';
+
+
+      const img =
+        document.createElement('img');
+
+      img.src = lastGifUrl;
+      img.alt = 'SWH GIF Preview';
+
+      previewBox.appendChild(img);
+
+
+      const validCount =
+        results.filter(function(item) {
+          return item.ok;
+        }).length;
+
+
+      const info =
+        document.getElementById('previewInfo');
+
+      info.style.display = 'block';
+
+      info.textContent =
+        CONFIG[selectedSource].label +
+        ' • ' +
+        selectedParam +
+        ' • Base Run ' +
+        plan.baseRun +
+        ' • ' +
+        validCount +
+        ' frame • ' +
+        plan.duration +
+        ' jam • ' +
+        plan.frameDuration +
+        ' ms/frame';
+
+
+      document.getElementById('downloadBtn')
+        .disabled = false;
+
+
+      setProgress(
+        100,
+        'GIF selesai dibuat.'
+      );
+
+
+      setStatus(
+        '✓ Preview GIF berhasil dibuat.',
+        'ok'
+      );
+
+
+      if (downloadAfter) {
+        downloadGif();
+      }
+
+    } catch (err) {
+      console.error(err);
+
+      setStatus(
+        'Gagal: ' +
+        (err.message || err),
+        'error'
+      );
+
+      setProgress(
+        0,
+        'Proses gagal.'
+      );
+
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+  function buildMediaFilename(ext) {
+    const cfg =
+      CONFIG[selectedSource];
+
+    const source =
+      cfg.label.toLowerCase();
+
+    const startDt =
+      getStartDateTime();
+
+    const duration =
+      getDuration();
+
+    // Frame terakhir = awal + (durasi - interval).
+    const lastOffset =
+      Math.max(0, duration - cfg.interval);
+
+    const endDt =
+      new Date(startDt.getTime() + lastOffset * 3600000);
+
+    function stamp(dt) {
+      return (
+        dt.getUTCFullYear() +
+        pad2(dt.getUTCMonth() + 1) +
+        pad2(dt.getUTCDate()) +
+        pad2(dt.getUTCHours())
+      );
+    }
+
+    // Contoh: SWH_cawo_2026110500_2026110523_24jam.gif
+    return (
+      selectedParam.toUpperCase() + '_' +
+      source + '_' +
+      stamp(startDt) + '_' +
+      stamp(endDt) + '_' +
+      duration + 'jam.' + ext
+    );
+  }
+
+
+  function triggerDownload(url, filename) {
+    const a =
+      document.createElement('a');
+
+    a.href = url;
+    a.download = filename;
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+  }
+
+
+  function downloadGif() {
+    if (!lastGifBlob) return;
+
+    triggerDownload(
+      lastGifUrl,
+      buildMediaFilename('gif')
+    );
+  }
+
+
+  // ============================================================
+  // MP4 (WebCodecs H.264 + mp4-muxer)
+  // ============================================================
+
+  async function createMp4(results, frameDuration) {
+    const valid =
+      results
+        .filter(function(item) {
+          return item.ok;
+        })
+        .sort(function(a, b) {
+          return a.index - b.index;
+        });
+
+    if (!valid.length) {
+      throw new Error(formatNoImagesError(results));
+    }
+
+    if (
+      typeof VideoEncoder === 'undefined' ||
+      typeof VideoFrame === 'undefined'
+    ) {
+      throw new Error(
+        'Browser ini belum mendukung pembuatan MP4. ' +
+        'Gunakan Chrome, Edge, atau Safari versi terbaru.'
+      );
+    }
+
+    if (typeof Mp4Muxer === 'undefined') {
+      throw new Error(
+        'Library MP4 gagal dimuat. Muat ulang halaman lalu coba lagi.'
+      );
+    }
+
+
+    const firstImage =
+      await blobToImage(
+        base64ToBlob(
+          valid[0].base64,
+          valid[0].contentType
+        )
+      );
+
+    // H.264 butuh dimensi genap.
+    let width =
+      firstImage.naturalWidth || firstImage.width;
+
+    let height =
+      firstImage.naturalHeight || firstImage.height;
+
+    width -= width % 2;
+    height -= height % 2;
+
+    // Durasi TOTAL video ditentukan oleh Speed (bukan jumlah frame):
+    //  250 ms -> 8 dtk, 500 ms -> 14 dtk, 750 ms -> 20 dtk (pola +6 dtk
+    //  tiap +250 ms), lalu dilanjutkan untuk speed lainnya.
+    const MP4_TOTAL_SECONDS = {
+      100: 5,
+      250: 8,
+      500: 14,
+      750: 20,
+      1000: 26,
+      1500: 38
+    };
+
+    const totalSeconds =
+      MP4_TOTAL_SECONDS[frameDuration] ||
+      Math.round((2 + 6 * (frameDuration / 250)) * 10) / 10;
+
+    // Frame rate tetap 60 fps. Tiap gambar ditahan beberapa tick supaya
+    // total durasi sesuai tabel di atas, berapa pun jumlah frame-nya.
+    const fps = 60;
+
+    const totalTicks =
+      Math.max(valid.length, Math.round(totalSeconds * fps));
+
+    const tickUsAt = function(t) {
+      return Math.round(t * 1000000 / fps);
+    };
+
+    const codecs = [
+      'avc1.640034',
+      'avc1.4d0034',
+      'avc1.420034'
+    ];
+
+    let config = null;
+
+    for (let i = 0; i < codecs.length; i++) {
+      const candidate = {
+        codec: codecs[i],
+        width: width,
+        height: height,
+        bitrate: 6000000,
+        framerate: fps
+      };
+
+      try {
+        const support =
+          await VideoEncoder.isConfigSupported(candidate);
+
+        if (support && support.supported) {
+          config = candidate;
+          break;
+        }
+      } catch (e) {}
+    }
+
+    if (!config) {
+      throw new Error(
+        'Browser ini tidak mendukung encoder H.264 untuk ukuran ' +
+        width + '×' + height + '.'
+      );
+    }
+
+
+    const muxer =
+      new Mp4Muxer.Muxer({
+        target: new Mp4Muxer.ArrayBufferTarget(),
+        video: {
+          codec: 'avc',
+          width: width,
+          height: height
+        },
+        fastStart: 'in-memory'
+      });
+
+    let encoderError = null;
+
+    const encoder =
+      new VideoEncoder({
+        output: function(chunk, meta) {
+          muxer.addVideoChunk(chunk, meta);
+        },
+        error: function(e) {
+          encoderError = e;
+        }
+      });
+
+    encoder.configure(config);
+
+
+    const canvas =
+      document.createElement('canvas');
+
+    canvas.width = width;
+    canvas.height = height;
+
+    const ctx =
+      canvas.getContext('2d');
+
+    let tickIndex = 0;
+
+
+    for (let i = 0; i < valid.length; i++) {
+      const item = valid[i];
+
+      setProgress(
+        30 + (i / valid.length) * 60,
+        'Menyusun MP4: frame ' +
+        (i + 1) + ' / ' + valid.length
+      );
+
+      const img =
+        await blobToImage(
+          base64ToBlob(
+            item.base64,
+            item.contentType
+          )
+        );
+
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+
+      // Jatah tick untuk gambar ke-i (dibagi rata, minimal 1 tick).
+      const tickStart = Math.floor(i * totalTicks / valid.length);
+      const tickEnd = Math.floor((i + 1) * totalTicks / valid.length);
+      const repeats = Math.max(1, tickEnd - tickStart);
+
+      for (let r = 0; r < repeats; r++) {
+        const ts = tickUsAt(tickIndex);
+
+        const frame =
+          new VideoFrame(
+            canvas,
+            {
+              timestamp: ts,
+              duration: tickUsAt(tickIndex + 1) - ts
+            }
+          );
+
+        encoder.encode(
+          frame,
+          { keyFrame: tickIndex % 60 === 0 }
+        );
+
+        frame.close();
+        tickIndex++;
+
+        // Jaga antrian encoder agar memori tidak membengkak.
+        while (
+          encoder.encodeQueueSize > 8 &&
+          !encoderError
+        ) {
+          await new Promise(function(res) {
+            setTimeout(res, 5);
+          });
+        }
+
+        if (encoderError) {
+          throw new Error(
+            'Encoder MP4 gagal: ' +
+            (encoderError.message || encoderError)
+          );
+        }
+      }
+    }
+
+
+    setProgress(92, 'Finalisasi MP4...');
+
+    await encoder.flush();
+    encoder.close();
+
+    if (encoderError) {
+      throw new Error(
+        'Encoder MP4 gagal: ' +
+        (encoderError.message || encoderError)
+      );
+    }
+
+    muxer.finalize();
+
+    return new Blob(
+      [muxer.target.buffer],
+      { type: 'video/mp4' }
+    );
+  }
+
+
+  async function generateMp4() {
+    setBusy(true);
+
+    document.getElementById('progressWrap')
+      .style.display = 'block';
+
+    setProgress(
+      2,
+      'Menyiapkan daftar frame...'
+    );
+
+    setStatus('');
+
+
+    try {
+      const plan = buildUrls();
+
+      if (plan.urls.length > 180) {
+        throw new Error(
+          'Jumlah frame menjadi ' +
+          plan.urls.length +
+          '. Kurangi durasi agar maksimal 180 frame.'
+        );
+      }
+
+      setProgress(
+        10,
+        'Menyiapkan ' +
+        plan.urls.length +
+        ' frame (5 per batch)...'
+      );
+
+      const results =
+        await getFrames(plan);
+
+      setProgress(
+        30,
+        'Frame siap. Membuat MP4...'
+      );
+
+      const blob =
+        await createMp4(
+          results,
+          plan.frameDuration
+        );
+
+      const url =
+        URL.createObjectURL(blob);
+
+      triggerDownload(
+        url,
+        buildMediaFilename('mp4')
+      );
+
+      setTimeout(function() {
+        URL.revokeObjectURL(url);
+      }, 10000);
+
+      setProgress(
+        100,
+        'MP4 selesai dibuat.'
+      );
+
+      setStatus(
+        '✓ MP4 berhasil dibuat dan diunduh.',
+        'ok'
+      );
+
+    } catch (err) {
+      console.error(err);
+
+      setStatus(
+        'Gagal: ' +
+        (err.message || err),
+        'error'
+      );
+
+      setProgress(
+        0,
+        'Proses gagal.'
+      );
+
+    } finally {
+      setBusy(false);
+    }
+  }
+
+
+  // ============================================================
+  // PRAKSAR
+  // ============================================================
+
+
+  // Kalender HTML mandiri: tidak bergantung pada showPicker() / iframe browser.
+  let praksarCalendarTarget = null;
+  let praksarCalendarMonth = null;
+
+  function openPraksarCalendar(textId) {
+    const input = document.getElementById(textId);
+    const existing = document.getElementById('praksarCalendarPopup');
+    if (existing && existing.style.display !== 'none' && praksarCalendarTarget === textId) {
+      existing.style.display = 'none';
+      praksarCalendarTarget = null;
+      return;
+    }
+    praksarCalendarTarget = textId;
+    let date;
+    try {
+      const iso = praksarTextToIso(input.value);
+      const [y, m, d] = iso.split('-').map(Number);
+      date = new Date(y, m - 1, d);
+    } catch (e) { date = new Date(); }
+    praksarCalendarMonth = new Date(date.getFullYear(), date.getMonth(), 1);
+    const popup = renderPraksarCalendar();
+    const anchor = input.closest('.praksar-date-picker');
+    anchor.appendChild(popup);
+    popup.style.display = 'block';
+  }
+
+  function renderPraksarCalendar() {
+    let popup = document.getElementById('praksarCalendarPopup');
+    if (!popup) {
+      popup = document.createElement('div');
+      popup.id = 'praksarCalendarPopup';
+      popup.className = 'praksar-calendar-popup';
+      popup.addEventListener('click', function(e) { e.stopPropagation(); });
+    }
+    const year = praksarCalendarMonth.getFullYear();
+    const month = praksarCalendarMonth.getMonth();
+    const title = new Intl.DateTimeFormat('id-ID', {month:'long', year:'numeric'}).format(praksarCalendarMonth);
+    const first = (new Date(year, month, 1).getDay() + 6) % 7;
+    const days = new Date(year, month + 1, 0).getDate();
+    const currentValue = document.getElementById(praksarCalendarTarget).value;
+    let html = '<div class="praksar-cal-head"><button type="button" onclick="shiftPraksarCalendar(-1)">‹</button><strong>' + title + '</strong><button type="button" onclick="shiftPraksarCalendar(1)">›</button></div>';
+    html += '<div class="praksar-cal-days">';
+    ['Sen','Sel','Rab','Kam','Jum','Sab','Min'].forEach(function(day) { html += '<span class="praksar-cal-week">' + day + '</span>'; });
+    for (let i=0; i<first; i++) html += '<span></span>';
+    for (let d=1; d<=days; d++) {
+      const display = pad2(d) + '/' + pad2(month+1) + '/' + year;
+      html += '<button type="button" class="praksar-cal-day' + (display === currentValue ? ' selected' : '') + '" onclick="choosePraksarCalendarDate(' + d + ')">' + d + '</button>';
+    }
+    popup.innerHTML = html + '</div>';
+    return popup;
+  }
+
+  function shiftPraksarCalendar(offset) {
+    praksarCalendarMonth.setMonth(praksarCalendarMonth.getMonth() + offset);
+    renderPraksarCalendar();
+  }
+
+  function choosePraksarCalendarDate(day) {
+    const input = document.getElementById(praksarCalendarTarget);
+    input.value = pad2(day) + '/' + pad2(praksarCalendarMonth.getMonth()+1) + '/' + praksarCalendarMonth.getFullYear();
+    input.dispatchEvent(new Event('change', {bubbles:true}));
+    document.getElementById('praksarCalendarPopup').style.display = 'none';
+    praksarCalendarTarget = null;
+  }
+
+  document.addEventListener('click', function(e) {
+    const popup = document.getElementById('praksarCalendarPopup');
+    if (popup && !e.target.closest('.praksar-date-picker')) {
+      popup.style.display = 'none';
+      praksarCalendarTarget = null;
+    }
+  });
+
+  function praksarTextToIso(value) {
+    const stamp = parsePraksarDisplayDate(value);
+    return stamp.slice(0,4) + '-' + stamp.slice(4,6) + '-' + stamp.slice(6,8);
+  }
+
+  function loadPraksarShips() {
+    const select = document.getElementById('praksarShip');
+    select.disabled = true;
+    select.innerHTML = '<option value="">Memuat kapal...</option>';
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+        fillPraksarShips((result && result.ships) || []);
+      })
+      .withFailureHandler(function(err) {
+        console.error(err);
+        fillPraksarShips([]);
+        setPraksarStatus(
+          'Gagal memuat daftar kapal: ' + (err.message || err),
+          'error'
+        );
+      })
+      .getPraksarShips();
+  }
+
+  function fillPraksarShips(ships) {
+    const select = document.getElementById('praksarShip');
+    const previous = select.value;
+
+    select.innerHTML = '';
+
+    if (!ships.length) {
+      select.innerHTML = '<option value="">Kapal tidak ditemukan</option>';
+      select.disabled = true;
+      updatePraksarSummary();
+      return;
+    }
+
+    ships.forEach(function(name) {
+      const opt = document.createElement('option');
+      opt.value = name;
+      opt.textContent = name;
+      select.appendChild(opt);
+    });
+
+    if (previous && ships.indexOf(previous) !== -1) {
+      select.value = previous;
+    }
+
+    select.disabled = false;
+    updatePraksarSummary();
+  }
+
+  function setupPraksarCalendar() {
+    ['praksarBaseDate', 'praksarStartDate', 'praksarEndDate'].forEach(function(id) {
+      const textInput = document.getElementById(id);
+      const picker = document.getElementById(id + 'Calendar');
+      picker.addEventListener('change', function() {
+        if (!picker.value) return;
+        textInput.value = toPraksarDisplayDate(picker.value);
+        textInput.dispatchEvent(new Event('change', { bubbles:true }));
+      });
+      textInput.addEventListener('change', function() {
+        try { picker.value = praksarTextToIso(textInput.value); }
+        catch (e) { picker.value = ''; }
+      });
+    });
+  }
+
+  function toPraksarDisplayDate(isoDate) {
+    const p = isoDate.split('-');
+    return p[2] + '/' + p[1] + '/' + p[0];
+  }
+
+  function parsePraksarDisplayDate(value) {
+    const match = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value.trim());
+    if (!match) throw new Error('Tanggal PRAKSAR harus DD/MM/YYYY.');
+    const d = Number(match[1]), m = Number(match[2]), y = Number(match[3]);
+    const check = new Date(Date.UTC(y, m - 1, d));
+    if (check.getUTCFullYear() !== y || check.getUTCMonth() !== m - 1 || check.getUTCDate() !== d) {
+      throw new Error('Tanggal PRAKSAR tidak valid: ' + value);
+    }
+    return match[3] + match[2] + match[1];
+  }
+
+  function getSelectedPraksarFolders() {
+    return Array.from(document.querySelectorAll('#praksarFolders input:checked')).map(function(el) { return el.value; });
+  }
+
+  function togglePraksarFolders(checked) {
+    document.querySelectorAll('#praksarFolders input[type="checkbox"]').forEach(function(el) { el.checked = checked; });
+    updatePraksarSummary();
+  }
+
+  function formatPraksarTimestamp(value) {
+    return value.slice(6,8) + '/' + value.slice(4,6) + '/' + value.slice(0,4) + ' | ' + value.slice(8,10) + ' UTC';
+  }
+
+  function getPraksarTimestamp(dateId, hourId) {
+    const date =
+      document.getElementById(dateId).value;
+
+    const hour =
+      document.getElementById(hourId).value;
+
+    if (!date) {
+      throw new Error(
+        'Tanggal PRAKSAR belum dipilih.'
+      );
+    }
+
+    return parsePraksarDisplayDate(date) + hour;
+  }
+
+
+  function getPraksarConfig() {
+    const baseRun =
+      getPraksarTimestamp(
+        'praksarBaseDate',
+        'praksarBaseHour'
+      );
+
+    const startDate =
+      getPraksarTimestamp(
+        'praksarStartDate',
+        'praksarStartHour'
+      );
+
+    const endDate =
+      getPraksarTimestamp(
+        'praksarEndDate',
+        'praksarEndHour'
+      );
+
+
+    const start =
+      parseUtcTimestampClient(startDate);
+
+    const end =
+      parseUtcTimestampClient(endDate);
+
+
+    if (end.getTime() < start.getTime()) {
+      throw new Error(
+        'End Date tidak boleh lebih awal dari Start Date.'
+      );
+    }
+
+
+    const diff =
+      end.getTime() - start.getTime();
+
+    if (diff % (3 * 3600000) !== 0) {
+      throw new Error(
+        'Rentang PRAKSAR harus berada pada interval 3 jam.'
+      );
+    }
+
+
+    const ship =
+      document.getElementById('praksarShip').value;
+
+    if (!ship) {
+      throw new Error(
+        'Kapal PRAKSAR belum dipilih.'
+      );
+    }
+
+
+    return {
+      ship: ship,
+      baseRun: baseRun,
+      startDate: startDate,
+      endDate: endDate,
+      folders: getSelectedPraksarFolders()
+    };
+  }
+
+
+  function parseUtcTimestampClient(value) {
+    const y = Number(value.substring(0, 4));
+    const m = Number(value.substring(4, 6));
+    const d = Number(value.substring(6, 8));
+    const h = Number(value.substring(8, 10));
+
+    return new Date(
+      Date.UTC(
+        y,
+        m - 1,
+        d,
+        h,
+        0,
+        0
+      )
+    );
+  }
+
+
+  function updatePraksarSummary() {
+    if (selectedSource !== 'praksar') return;
+    document.getElementById('praksarFolderCount').textContent = getSelectedPraksarFolders().length + ' folder';
+
+    try {
+      const cfg =
+        getPraksarConfig();
+
+      document.getElementById(
+        'praksarBaseRunText'
+      ).textContent =
+        cfg.ship + ' | ' +
+        formatPraksarTimestamp(cfg.baseRun);
+
+      document.getElementById(
+        'praksarPeriodText'
+      ).textContent =
+        cfg.startDate +
+        ' → ' +
+        cfg.endDate +
+        ' UTC';
+
+    } catch (err) {
+      document.getElementById(
+        'praksarBaseRunText'
+      ).textContent = '-';
+
+      document.getElementById(
+        'praksarPeriodText'
+      ).textContent = '-';
+    }
+  }
+
+
+  function setPraksarProgress(value, text) {
+    document.getElementById(
+      'praksarProgressBar'
+    ).style.width =
+      Math.max(
+        0,
+        Math.min(100, value)
+      ) + '%';
+
+    document.getElementById(
+      'praksarProgressText'
+    ).textContent = text;
+  }
+
+
+  function setPraksarBusy(busy) {
+    document.getElementById(
+      'praksarDownloadBtn'
+    ).disabled = busy;
+  }
+
+
+  function setPraksarStatus(text, type) {
+    const el =
+      document.getElementById(
+        'praksarStatus'
+      );
+
+    el.textContent = text;
+
+    el.className =
+      'status' +
+      (type ? ' ' + type : '');
+  }
+
+
+  function clearPraksarStatus() {
+    document.getElementById(
+      'praksarProgressWrap'
+    ).style.display = 'none';
+
+    setPraksarProgress(
+      0,
+      'Menyiapkan...'
+    );
+
+    setPraksarStatus('');
+  }
+
+
+  function base64ToDownload(base64, contentType, filename) {
+    const blob =
+      base64ToBlob(
+        base64,
+        contentType
+      );
+
+    const url =
+      URL.createObjectURL(blob);
+
+    const a =
+      document.createElement('a');
+
+    a.href = url;
+    a.download = filename || 'download';
+
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    setTimeout(function() {
+      URL.revokeObjectURL(url);
+    }, 5000);
+  }
+
+
+  function downloadPraksar() {
+    setPraksarBusy(true);
+
+    document.getElementById(
+      'praksarProgressWrap'
+    ).style.display = 'block';
+
+    setPraksarProgress(
+      5,
+      'Menyiapkan parameter PRAKSAR...'
+    );
+
+    setPraksarStatus('');
+
+
+    let cfg;
+
+    try {
+      cfg = getPraksarConfig();
+      if (!cfg.folders.length) throw new Error('Pilih minimal satu folder PRAKSAR.');
+
+    } catch (err) {
+      setPraksarProgress(
+        0,
+        'Proses gagal.'
+      );
+
+      setPraksarStatus(
+        'Gagal: ' +
+        (err.message || err),
+        'error'
+      );
+
+      setPraksarBusy(false);
+      return;
+    }
+
+
+    setPraksarProgress(
+      15,
+      'Membaca folder PRAKSAR dan mengunduh gambar...'
+    );
+
+
+    google.script.run
+      .withSuccessHandler(function(result) {
+
+        if (!result || !result.ok) {
+          setPraksarProgress(
+            0,
+            'Proses gagal.'
+          );
+
+          setPraksarStatus(
+            'Server tidak mengembalikan hasil download.',
+            'error'
+          );
+
+          setPraksarBusy(false);
+          return;
+        }
+
+
+        setPraksarProgress(
+          90,
+          'Menyiapkan file ZIP...'
+        );
+
+
+        base64ToDownload(
+          result.base64,
+          result.contentType,
+          result.filename
+        );
+
+
+        setPraksarProgress(
+          100,
+          'Download selesai.'
+        );
+
+
+        let message =
+          '✓ ' +
+          result.downloadedFiles +
+          ' gambar berhasil dikemas. ' +
+          'File: ' +
+          result.filename;
+
+
+        if (
+          result.failedFiles &&
+          result.failedFiles.length
+        ) {
+          message +=
+            ' ' +
+            result.failedFiles.length +
+            ' file gagal diunduh.';
+        }
+
+
+        setPraksarStatus(
+          message,
+          result.failedFiles &&
+          result.failedFiles.length
+            ? ''
+            : 'ok'
+        );
+
+        setPraksarBusy(false);
+      })
+      .withFailureHandler(function(err) {
+
+        console.error(err);
+
+        setPraksarProgress(
+          0,
+          'Proses gagal.'
+        );
+
+        setPraksarStatus(
+          'Gagal: ' +
+          (err.message || err),
+          'error'
+        );
+
+        setPraksarBusy(false);
+      })
+      .downloadPraksarZip(cfg);
+  }
+
+
+  init();
+</script>
+</body>
+</html>

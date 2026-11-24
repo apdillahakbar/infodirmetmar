@@ -1,0 +1,2319 @@
+<!DOCTYPE html>
+<html>
+<head>
+<script src="../assets/config.js?v=8"></script>
+<script src="../assets/gas-bridge.js?v=8" data-app="kapal"></script>
+  <meta charset="utf-8">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Rekapitulasi Analisis Kecelakaan Kapal</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.js"></script>
+
+  <style>
+    * { box-sizing: border-box; }
+
+    :root {
+      --navy: #0F2A47;
+      --primary: #1F4E79;
+      --text: #1F2937;
+      --muted: #667085;
+      --border: #DDE3EA;
+      --bg: #F3F5F8;
+      --card: #FFFFFF;
+    }
+
+    body {
+      margin: 0;
+      font-family: Inter, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* HEADER */
+    .header { background: transparent; border: 0; padding: 0; }
+
+    .header-inner {
+      width: 100%;
+      margin: 0;
+      padding: 12px 24px;
+      background: linear-gradient(135deg, #0B2540 0%, #12395F 55%, #1F4E79 100%);
+      border-bottom: 3px solid #2FA84F;
+      box-shadow: 0 2px 6px rgba(15,42,71,0.18);
+    }
+
+    .header-brand {
+      --logo-h: 56px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .header-logo { height: var(--logo-h); width: auto; display: block; }
+
+    .header-text {
+      padding-left: 16px;
+      border-left: 1px solid rgba(255,255,255,0.28);
+      min-width: 0;
+    }
+
+    .header-org {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #C5D4E6;
+      margin-bottom: 2px;
+    }
+
+    .header-title {
+      font-size: 22px;
+      font-weight: 700;
+      color: #ffffff;
+      text-align: left;
+      line-height: 1.25;
+    }
+
+    .disclaimer {
+      width: 100%;
+      max-width: none;
+      margin: 8px 0 28px;
+      padding: 14px 24px;
+      border-top: 1px solid var(--border);
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.6;
+      text-align: left;
+    }
+
+    .container { width: 100%; max-width: none; margin: 0; padding: 12px 0 20px; }
+
+    /* FILTER */
+    .filter-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px 12px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+      position: relative;
+    }
+    .filter-card.is-hidden { display: none; }
+
+    .filter-toggle {
+      position: absolute;
+      top: 7px;
+      right: 9px;
+      border: 0;
+      background: transparent;
+      color: #98A2B3;
+      font-size: 10px;
+      line-height: 1;
+      padding: 3px 5px;
+      cursor: pointer;
+    }
+    .filter-toggle:hover { color: var(--primary); }
+
+    .filter-show-btn {
+      display: none;
+      border: 1px solid var(--border);
+      background: var(--card);
+      color: var(--muted);
+      border-radius: 4px;
+      font-size: 11px;
+      padding: 4px 9px;
+      cursor: pointer;
+      margin: 0 0 8px auto;
+    }
+    .filter-show-btn.is-visible { display: block; }
+
+    .filters {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(150px, 1fr));
+      gap: 10px;
+      align-items: start;
+    }
+
+    .filter-block { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+
+    .filter-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      padding-left: 2px;
+    }
+
+    .range-group { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+    .range-group select { font-size: 12px; }
+
+    select, input {
+      width: 100%;
+      padding: 8px 10px;
+      border: 1px solid #CBD2DC;
+      border-radius: 4px;
+      background: #fff;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 13px;
+      outline: none;
+      min-width: 0;
+    }
+    select:focus, input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px rgba(31,78,121,0.12);
+    }
+
+    .filter-actions { display: flex; justify-content: flex-end; }
+
+    .reset-btn {
+      margin-top: 0;
+      padding: 8px 16px;
+      border: 1px solid var(--primary);
+      border-radius: 4px;
+      background: #fff;
+      color: var(--primary);
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .reset-btn:hover { background: var(--primary); color: #fff; }
+
+    /* STATISTICS */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .stat-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+      position: relative;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .stat-card::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; }
+
+    .stat-card.total::before { background: #4338CA; }
+    .stat-card.sunk::before { background: #B42318; }
+    .stat-card.grounded::before { background: #C2570C; }
+    .stat-card.fire::before { background: #D4A017; }
+    .stat-card.other::before { background: #8A94A6; }
+
+    .stat-label {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 4px;
+    }
+    .stat-value { font-size: 26px; font-weight: 700; color: var(--navy); line-height: 1.1; }
+
+
+    /* CHART */
+    .charts {
+      display: grid;
+      grid-template-columns: repeat(10, 1fr);
+      gap: 12px;
+      margin-bottom: 12px;
+      align-items: stretch;
+    }
+
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      height: 288px;
+      box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+    }
+    #monthlyCard { grid-column: span 6; }
+    #conditionCard { grid-column: span 4; }
+    #yearCard { grid-column: span 6; }
+    #provinceCard { grid-column: span 4; }
+    .chart-card-wide { height: 288px; min-height: 0; }
+    .province-chart-wrapper { height: 224px; }
+
+    .chart-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--navy);
+      margin-bottom: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid #EEF1F5;
+    }
+
+    .chart-wrapper { position: relative; height: 222px; }
+
+    .chart-empty {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #98A2B3;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    /* MAP */
+    .map-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+    }
+
+    .map-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 6px 14px;
+      margin-bottom: 10px;
+    }
+    .map-head .chart-title { margin-bottom: 0; padding-bottom: 0; border-bottom: 0; }
+
+    .map-wrapper {
+      position: relative;
+      isolation: isolate;
+      height: 440px;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    #shipMap { width: 100%; height: 100%; background: #E9EEF3; font-family: inherit; }
+
+    .map-legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px 18px;
+      margin-top: 10px;
+      font-size: 12px;
+      color: #475467;
+      align-items: center;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 7px; }
+    .legend-dot {
+      width: 11px; height: 11px; border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(15,42,71,0.35);
+    }
+    .legend-dot.est { background: transparent !important; border: 2px dashed #6b7280; box-shadow: none; }
+
+    .map-popup { font-size: 12px; line-height: 1.55; color: var(--text); }
+    .map-popup b { font-size: 13px; color: var(--navy); }
+    .map-popup .est-note { color: #b45309; font-style: italic; }
+
+    .ship-pin span {
+      display: block;
+      width: 16px; height: 16px;
+      border-radius: 50%;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 1px rgba(15,42,71,0.4), 0 1px 4px rgba(15,42,71,0.3);
+    }
+
+    /* Zona (cluster): angka putih di atas warna solid */
+    .marker-cluster.marker-cluster-small { background-color: rgba(47,133,90,0.28); }
+    .marker-cluster.marker-cluster-small div { background-color: #2F855A; }
+    .marker-cluster.marker-cluster-medium { background-color: rgba(183,121,31,0.28); }
+    .marker-cluster.marker-cluster-medium div { background-color: #B7791F; }
+    .marker-cluster.marker-cluster-large { background-color: rgba(192,86,33,0.28); }
+    .marker-cluster.marker-cluster-large div { background-color: #C05621; }
+    .marker-cluster div {
+      width: 30px; height: 30px; margin-left: 5px; margin-top: 5px;
+      border-radius: 50%;
+      color: #ffffff;
+      box-shadow: 0 1px 3px rgba(15,42,71,0.35);
+    }
+    .marker-cluster span {
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 30px;
+      color: #ffffff;
+    }
+
+    .map-reset-btn {
+      border: 1px solid #CBD2DC;
+      background: #fff;
+      color: var(--primary);
+      border-radius: 4px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 5px 11px;
+      cursor: pointer;
+    }
+    .map-reset-btn:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+
+    .map-empty {
+      position: absolute;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(255,255,255,0.88);
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      padding: 20px;
+      z-index: 1000;
+    }
+
+    /* TABLE */
+    .table-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      box-shadow: 0 1px 2px rgba(15,42,71,0.04);
+    }
+
+    .table-header {
+      padding: 14px 18px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 15px;
+    }
+
+    .table-title { font-size: 14px; font-weight: 600; color: var(--navy); white-space: nowrap; }
+    .result-count { color: var(--muted); font-size: 12px; margin-left: auto; white-space: nowrap; }
+
+    .table-search { position: relative; width: 310px; max-width: 45%; }
+    .table-search input { padding-left: 34px; }
+    .table-search svg {
+      position: absolute;
+      left: 10px; top: 50%;
+      width: 16px; height: 16px;
+      margin-top: -8px;
+      fill: none; stroke: #98A2B3; stroke-width: 2;
+      stroke-linecap: round; stroke-linejoin: round;
+      pointer-events: none;
+    }
+
+    .table-container { overflow-x: auto; max-height: 600px; }
+
+    .table-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 6px;
+      padding: 14px 16px 16px;
+      border-top: 1px solid #EEF1F5;
+    }
+
+    .pagination-btn, .pagination-number {
+      min-width: 34px;
+      height: 32px;
+      border: 1px solid #CBD2DC;
+      background: #fff;
+      color: #344054;
+      border-radius: 4px;
+      padding: 0 9px;
+      font-family: inherit;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: .15s ease;
+    }
+    .pagination-btn:hover:not(:disabled), .pagination-number:hover:not(.active) {
+      border-color: var(--primary);
+      color: var(--primary);
+      background: #F0F5FA;
+    }
+    .pagination-number.active { background: var(--primary); border-color: var(--primary); color: #fff; cursor: default; }
+    .pagination-btn:disabled { opacity: .45; cursor: not-allowed; }
+    .pagination-pages { display: inline-flex; gap: 6px; }
+    .pagination-ellipsis { min-width: 22px; text-align: center; color: var(--muted); font-size: 12px; font-weight: 600; user-select: none; }
+
+    @media (max-width: 640px) {
+      .table-pagination { gap: 4px; padding-left: 8px; padding-right: 8px; }
+      .pagination-btn, .pagination-number { min-width: 30px; height: 30px; padding: 0 7px; font-size: 11px; }
+      .pagination-ellipsis { min-width: 16px; font-size: 11px; }
+    }
+
+    table { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 1250px; }
+
+    th {
+      position: sticky;
+      top: 0;
+      background: var(--navy);
+      color: #fff;
+      padding: 11px 10px;
+      text-align: left;
+      font-weight: 600;
+      letter-spacing: 0.02em;
+      border-bottom: 1px solid #0A1E34;
+      white-space: nowrap;
+      z-index: 5;
+    }
+
+    td { padding: 10px; border-bottom: 1px solid #EEF1F5; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #FAFBFC; }
+    tbody tr:hover { background: #F0F5FA; }
+
+    .condition {
+      display: inline-block;
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .condition.tenggelam { background: #FCE8E6; color: #9B1C1C; }
+    .condition.kandas { background: #FDEFD8; color: #9A4A06; }
+    .condition.terbakar { background: #FBF1D0; color: #7A5A00; }
+    .condition.lainnya { background: #EAECF0; color: #475467; }
+
+    .empty { text-align: center; padding: 50px; color: #98A2B3; }
+
+    /* LOADING */
+    .loading {
+      position: fixed;
+      inset: 0;
+      background: rgba(255,255,255,0.96);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 100;
+    }
+    .loading-box { text-align: center; font-size: 14px; color: #475467; }
+    .spinner {
+      width: 38px; height: 38px;
+      border: 3px solid #E4E8EE;
+      border-top: 3px solid var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 15px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media(max-width: 1150px) {
+      .filters { grid-template-columns: repeat(3, 1fr); }
+      .stats { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    @media(max-width: 900px) {
+      .charts { grid-template-columns: 1fr; }
+      #monthlyCard, #conditionCard, #yearCard, #provinceCard { grid-column: 1 / -1; }
+      .chart-card { height: 300px; }
+      .chart-wrapper { height: 235px; }
+      .chart-card-wide { height: 300px; }
+      .province-chart-wrapper { height: 245px; }
+      .map-wrapper { height: 380px; }
+      .table-header { flex-wrap: wrap; }
+      .table-search { max-width: none; width: 100%; order: 3; }
+    }
+
+    @media(max-width: 600px) {
+      .container { padding: 15px; }
+      .header-inner { padding: 10px 14px; }
+      .header-title { font-size: 16px; }
+      .header-org { font-size: 9px; }
+      .header-brand { --logo-h: 40px; gap: 10px; }
+      .header-text { padding-left: 10px; }
+      .filters { grid-template-columns: 1fr; }
+      .stats { grid-template-columns: 1fr 1fr; }
+      .table-title { width: 100%; }
+      .result-count { margin-left: 0; }
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="loading" id="loading">
+  <div class="loading-box">
+    <div class="spinner"></div>
+    Memuat data kecelakaan kapal...
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="header-brand">
+      <img class="header-logo" alt="Logo BMKG" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAKYAAADICAYAAABidppdAAA5SUlEQVR42u19d3xcxbX/98y9u6tuueFusDHNphlwQkmQlZCEXhKkAKG+QOAFUiE9QRIkLyEPeLwX+EEoIQTyIFJowfCAEGRhDAQI1QbbYNx7U11pd+/M+f1xZ6Sr9Za7q10Vew+fi2Tt3jbzne8pc+YMYa8Xpro60EIsFC0LAbRUSwDs/YYFwBZAj2QBoOKmpo0VnZ1y1KqNspRCVKIkh6QiC5CAEDJgUSQa4fCM8VZXUZHVVn/x5HYA7UUWqZgC1O4PQahqtqrmA/MxXzU0gAHivblXaK+EIjPV1kI0bV1IaKl2vI0RtIE33uLRf3x5w37vrYse0B1xDmrrkvt39TjTojE1MSYxOuKoMmYUSUUBkIBi6kUyASBiEEtYhBgIPSGbOgMW7QoGxOZQ0F43psxaGQjay2dPCX70teqy1SfNrdwVlXGjoarZrtlnPjc1QoH2PpDSXgfGpiYAtdK8fHFI4Mf3bjnoteXt8zbsdI5r7Ywe3dWjZkUcMTbKRYgpgpIKUBJQDsASgAKYNbFyEtAQAeT+gADIAoQNCAskBAKCERQ9CFpyR2nQ+ri81P7XxNHBV48+oOKN26+esLwnojxAbbRQUwPsRSDd44FZU9NoNaEGaCIJADaAd9a2jrn+/rYTPtnS86Ud7dETO8LqkLAqtqMOABkDVBRgBwAkhAsE0mQIMJmm4zTtRwD38SAZFLt/UEwALJANiCBgBRCwgGIr7JSGrA/HlNkvTRsffO76C8YuPvHQyp29tF7DVg2a0NTkDq4CMEcYO1IthAGjALCqlUd/97/XnvTRxu4vb2l1qjuj9oTumACcCKAiAFhCELsAZMEu1Q1CBzADpBhgF6xkQYQAO4SQrVAaiG0ZU2E3Tx8feqzhgjEvVB1euUt5QLqnsijtcYCcv9AydmNJELjwprUnvvlRz9c27Og5sy0SmtgTY8DpBjimIIQisHCtwuHRFpplmUEKSglQQMAuRtAmlAUjmydUBv922PTgn/92w8yXemJ99igvnC9pDwIo7YmAZOZRp/58Te3yDeGvb2vnT3dEbSAWBtiR2uwbNEbMBaMywzU4ybYQKEGJHUNlKf6536SS+x789xmN++9PbXsaQGmEI5KgAUkAnnlz66RfP9x+xcpNkcu3hwPTIj1RQIUZQkgCWyMFjClBCpJQyoJVQoFgEJWh6Lpp44P3fu/0ynsuPmWfTawBioXz5UhW8SO2o2pq2GrSNuQ/l2yZeN0DXdd8tC585bZwaJyMdAEckyRADBJ7pnPAihUYFLCsUCkqQ5Ht+04I/v5bJ4+6/bLTJ2zutUF1GxWAmWepq2PR0FAPoEExc9mXfrH26vdXdn5/a1dwH9nTAQjpEDDi2dF/52kWZWFboXJUFkW2zppUdOtrt5XfQTShE6gTdXX1aGggVQBmPh6UgBdfZLu6mpySAHDOL1ed/+qHkfoNrfaBke4OEEmHaOSra2SrfImZGRJs23ZRGcaVRlccMSNU33LTrId7HKC5me3PfY4c5gIwc+ncCHLDhnzhrz4+9LVV6qbVW/hUp6sbQNSBgAX2AUgaCS1NA24tABII2nZxEaaO5mfmTrZ/9PivZy3R8CWi4c+eNAJAaRORw8wCwA8/2tDzi80dRSWW6pBCEDGntiH98if5PJF8XoSy7QDKQccRIAiKFbMjSq1xpZHwzImhGwH8loiUadMCMLMMAQEQRCSZ+VAA/w/AZ/XHEm5uRUHSi7etFgH4JhEtYWYLgBquoSUapqAURt0w8zcA3AKgDICjFCw2cei9qMkGeFcWAhLujGwngGuJ6O74ti4A05/qLgNwO4BLCiyZF/Z8AMA1RNQ5HFU7DVNQHgzgfwHMBeDoxqQCrnLm9xv2fBvABUS0bLiBUwxDUJ4M4GUPKO0CKHNORrZu27kAXmbmk3Xb2wVgepwcZrZ0w1wB4GkAYz2juiD5EVu38VgATzPzFboPLO14DvnDDSkoa5sgmmpJRqPOzwD8UiooMBQRLFfr0PDhmT3vthazu9JDCNztOLwPEf2qsZEtZla0F2bOg5mppqbRsgXAzLewKw4zKy7IYIvSbc/MfAsBqGlsHFLmtIcKlFTbJAKP1spn3mi7ffkmXB3u6nJAZFMqjqA4Ez4NpVD8VyjJ7+iLp5Pnw6Sfx33XJRZK8734z6j3O7t9TgCB3J/Uu0jDJ6cmILn0swwEV4U7paXB7y/f0BOaPa3omtomtsA8JInINCSgnL/QCr1c7VT/ZMXvXv0ocE3b9h0xWBwYlMchf3+nuL+5MOLEoE1wjfi/7Q5ySnivZCB1P+D8dh8zlEJsVOXYwKTy8O1L7jzkW9HPDk0K3eBTdVWzHXip2jn1+o9++/z71g+623fGyEZg2BszPFjXHQYtITkWKB8bOHJa5D/f/t3sHzpVzbZ3NemeB8w6tkUDOWc3rPjhs++Jm8LtrQ7ZsIdDxgvteRQwsPEi4YRKK+15MyI/euXWOb9VdWyjYfDinIMWLqqqa7bRQM7lt6288MWldFO4vc0hG9ZwScPifB88sg4SbEW62py3VgduOvnnyy5EAzlVdc32HsWYNY1sNdWS/NWDaz572zPd/9i2LSwoIAXz0OZO9nM+jC3XC1TuXXzLe2lNDAIzS0tVjCpSX55nff6PPzpokXflwIhmzLo6Fk21JF9/f8e0u/8Rbtq2oydAtqShACURYAmCbREs4VbPYIehIgoqrCC7HMhOBzIsoboVVJTB0k09ti33PCH2HmAyiMiS1N4RCyx4x2m64/H105qaSNbVcd5bIa/U7CalNhEzB468elnjmi08gSgmGWQNJhiFcJORpKMge6ROZSBQicDoygDGltsoKxYoL7ZgW0A4otDZrdDaJbGzw0G4U8KJaJIIEBASsC2CYkAp3tPBKQhRub0tOOE/n2xtZOYTiZoUmCmfnnpegTm/fqEVFLXOKT9fdtuHG4PHWrzTYUvYNBi6kdw4oIwpyE4JEFA5Lohj5pbi+NmlOHJWCQ6aWoSJo21UlFiwrd0JPNyjsKtLYtWmCD5c14PXPuzCP5d3YemabjitMSAgQMUCQhB4TwaoEJbgTmf9rtHHzvv2B7cGqPZbx9c32y3ufPvIsjGNXXn6L1Z+5dn3nL86u9oc2LD9BMZz5s1EGaPGBXDyp0bhnBNG48TDyjBpTCDpKQZbhOQxaaWA91d145k32vD44la88WEnEFFAcC/IM1HkoKzcnjuVz337rkMezae9mZfWrGMWDQCvXReefNW9m9/9ZENstGXFeu1K7lX1uY3gmfkXVkBZUOC86tE4v3oMpo4P9gOfUtxvdgVJZla41/nh3meNZ9bFSztx3zPb8cqHnYAlwHuwp0RglirAE8dYu+q/MvqIk44bu7GuHpSPFZh5AabOFpKOw08LC6cSlAQLi1MAKpdxZWaG5QGQ1FQotHofcFhJAYq5H0iVGhah8UEwOpWEEJZSeCZo02mmr4c9MM2DMvNlAP6AvpzKQRdHMoQgiDxqWQN6S+xVKaOmT/+NiO7PBzgpx6AUANDV1bVPaWnpUgCVmmUGPcgy2DDZm0Kd1FcUubWrq2tOaWnpVtffzJ1KzzUwDVv+CcBFQ8mWBRk01nyQiC7ONWtSrkEZjfJn7AAWMSCJ9cKnXMKfMaJrbewRzKpfggmSAMuJ4bPBIL2cS3DmEphGXb8K4FMorGrcG8T08esAjsulOqccgdKo8PMU8LATU5IoD7M75HrEkhnFwZE3N9gdVSgOCk+964FTKWfLyTkK1TGztG1hEXA+ET2SK9a0c4BKqq+vZ2YOHv+9ZQ0bd4IFxYhzqL9NkoUA4MQYj9Xvj6NmlUApjIi5a6kYliDc++wO3PbwJhRX2nAc9tG0WQCTszQfWCeuZHw/JkaARxWrBmZ+rL6+3nHr1A9sunLA6KmqarZbWqqdml+u/LdHX5f3qfZdEpaw+r9CXGo3ZzG6bQJaHXzz4sm44+rpvZ09IkwyzZCd3RLzvrUMK5Z1AiVW31TTiHbRCZAsUVZpfWp/+fXX//uQPyAHicU0wBYnEMCMwIxL3luyeivNsijKIAgiN37IcIPPUrHbEaxfRrixP8N4SiHprIkQBO5RmDm9CO/eORtFWo2PJCfIDKS3V4Zx7NUfgi035sIJl+i4bUfUP5fTrP0x7610oH8YiFII0dgy5+PtjUceSgRdHT571hyQHViF+faalhlqWfGlX/3XKnEFx7oUWcKSElDdCrJLuqljBIRCFkaVWagst2HbBCkBp0dBdUmoiAILQNgu4Ax+zUEEyAjjTz+didnTi6HYDZyPJBFEcCRjytggdnQpvPJ6G0Sx1Ttj1DteBUFKdtPwwm77KcnubFPMTdGTYQUZVVAEkE0gor7p06E5CMpRMat83POvb1u27rXx71dVzbfXrHkga0doQDZmS8NCxcw0+4ol3+8JE6ObAemgeLSNuYdU4LhDSjHvoFLMmBjEhNEBlBcLhAIC3RGFtrDEhh0xvLsyjOZ3O9DyXgd2bokCQYJVbEEpd37asgiy3cGp1WNw2rxRI0qFJ2J+xcD1F0zEI807sHVHDCLg5oUKQZDdEirCKBptY96hFTj24FIcMbMEk8cGURR0gb2rU2Lpmm68vTKMV5d2Yv2GiDuSSy1YgnpnogZdowuCE4nxRxuj32fmh4nqB+SdZ93DNTVs/fWvQl5685qq+59vX0gyrKrnjhK1VaPxxaMrMGNiKKPrbd4Zw2Mvt+LOp7ZiybIuoEQgEBSuUR5VeOPOOThi/2KoEQxMwJ0mtS3CbY9vxfduXY3Q2AAiYQl0KxwwqwSXnzwOX/7MaMyakr79OsISLe914I/P78Bji1vBPRJWmT10Jo5iFSwuEacdXTS/6eczW3Bu9jXgs3+FmkaLmmrlidct/8tB+46pvfrUUufwmcW21+A3o9ddG027LQs3WTsmsxwAIjHG75/ehvoHNmDX9hjQJXHuuRPQ9NOZI5ot4x2h7ojCAf+2BJtWdGH8fiX46QWT8I3TxqEkJBK2X/w1vG0GAK8v78IvH9qEp17aCchcsmZG7e3ALrOppKeR/+/or6Km0UKWO7hl1ctugX5SzDxlR1tsxdhRgRKYKvUqu8QJ0xEmY+fjjRHc0rQF7R0OfnrRJMyeXgwegbZlYk/BfY9n3mjDK2914Mov74NpOjUvk8QT5j7nx4C08aVd+NeHXbB0vNQbBSFwL0kY50qQq4Z7/60dUkMk8QUcyAMb2m0dPTMgqLSIwlecMu5AItpgsDIowPRUZvs+gFscCUcQ7FzEFFl33J6erRNflckMaMoa7H1VO4baWtG+y7VEdGu25Q2zBaY57w1mPlpH+nM60+NdT2MJ2iM3R5E6RJbL1DypeMAJ2AN5FGaWRGQJon8JgXk6/MV5B6YpjczMh8Mt/Eko1K/co5h8oJkm7E4hcdiJzi0Phd7Lppx2NsrXnHO2/l0WunN4Szii3GC8YjdGzCl2WQf6F/PK4hACUgiIsmDw7Gxxlk0cU2pVfkYOmL8geTUVXFv9wRd24jcPbUTJKNtd7wTt3GhnRoi+ZSeJ7VTKtKOJRBClgdgZzHxjNuSVEag8avwAAB9oYHMBnMM3NAUAnd0Kh121FGtWhYGQ1X9+UzHgcF+ISRBg6YwZgp43zUaZE1GJ7Zx3XMXsh6+f9VGm3nmmjCn0o1ajr453IUN9mAqRG34qLxG48ZLJuPiGlQiVWnAkQ4alC8hiC2PH2agsdX3Xjm6JbW0OOKxcABdbCAbJk8uQnoPYXVDpiFCZvWR9TzWAjxoWLjTYyQswzdg5qdDtI0NMKZxzjq/ExClF2LyuBwgKHH94OWpOHIMTDi3DjIlBjCp1E8I6uyXWbovhnZVhPPtmO557sw27tkaBkIBVJJKy524xTSJAMTqjfJIF3C1btmXEu75VsN6DkJm5CMByANP1CBCF7h8ZtubZN3yCVavDuPma6fjCURW+zt20I4Y//2MH7nhqG1avCrtqPpXn3pfSqICgQIla23z+2IOqL5vRk0meZibANPblETpMVHB8RpKtScAnmyKYPC6I4gD1zrT1rrWnPmC5Xru7/5yZ6GgLS9z26Ba8/mEXAkEBxezOIAk9e9T7O8ESpl4UcygoUHV4xdyLPz/m3Tpm0eAzbJQJMM1sz9cB3FuwL0c+g/oFtXeqOEMxGLmciO7LZBYoG2DNK3TtyBTlkmBG072mBKOXYVu7HLz9cTdCIdFbTGz3mvX6p7BhCzkPwH0LF/p/1kyAaWJRhxfU+MiUgUx7mmwm1qVxrrt3Pd55ryP5EhET+hQlmDDaOTxoAdXV/uOZvhwXj+NTDmD/TM4tyJ4VfmIAFSUWbv3GVJ25lGBinrVbrFggFsHODmf//9eyrRwghs+9g/wypkmemgZgXIEx92LW1eGnYw8pxVFHVmDb9igsz1Lqvn2JyN3KiIGSImvculWxaQA+qKsHNfgI2fsCl2fd+GkAFqBQzKAgAKIO99qdXjszLndTEsFigdMDRE/7XXeeCWMCwEwPYRdkL5eg7SuxjOOwk1NVbmTfQncUpE+TpqcyVgAJgDLEjl9gmkeYUuiOgnjtybTf6TM/p2SibUWGwJxQcHwKkil+47CTO2B6so9HF4BZkCyBOToOSwMDplnfw8w2gPJCOxckSynXGIKffdAzcX5CSqliIoJSioQoxNcLkl4MVpi5WAgRgs+9gTIBZlBfGJZVCGEWxJ8YrBBRCEAQQFeugWlt2bIlwFwIYRbEv7BOjwMQKC0t9c1ovoH57rvvioceeog6OjrMjQpSEP/qNhikY445RuQcmEop7urqQgGYBcnIJSc3I6moqAhFRUW+1W36+SSdWdTW1jZ2xYoVHzuOUwmfKyMLAC60j8GKEKJ10qRJs6ZOnbrDYConwGTmUQA+AjAehSW7BckQmAC2ATiAiNr8ANO3Kl+3bl108uTJPZqamQp0WBB/zo9htp6NGzdGc6bKvcwJ4EMAB6GwOrIg/sVgZTmAQ/wW2Moogx1Am4eeC1IQv6ocANq0SUg5A6bne9sL7VyQLGV7JpjzC0yD8s0FxixIloy5ORPzMdNE4XXMqnex+1CKW7GsYOaOIFmXyZczBeZqIgFrmPjjiiUEFebtR4iszgcwGQA6und90iHbIKUURKQ5mo2D1O/r/T/z/G7+v9vehel2MjQL6wmSFSpCozChdBoUK4gCcw5nMZ3zSSZmoC9g1tfXMwD8c9MLq3/7yncjO3t2hNzaYOzx/eN/477QahwI+0GQefenJey+FaXZeYHcnQJtUYZfnHgbzjjwsgJzDm/7UgCIeBgzh0W1GAQ3rh74woOTlm2JbJ4pZHaxzFxYAUSAo4BuB7jli/fjzAMvLYBzeIrByCcADiaimJ9ZH/9eOYFRA8uiYGxs6YRloZAFW1hsCwu7HyLlYeXgECRQZNsoC9q48aV/xye7PgCBoLhQDn6YeuTLNCgtvwF2384PNzYTUTVu/eITb4FwKkvFQ73HiSBCTEqMKR4HIqErlqiCtz78gPlWpgozA698PgPA5LL93ojKHqhhMl1OIDgqhvbILggSKAuOKjhEw0d694PKxL7MCJjGAXpiyf1v/2Hpr3pae3aZwsdDjk53CzoL3THGtcfdiK8cciWkisESgQI0hpYtLQA96Cv0m7t8zPjvMzO++OCUNzdFNx5FseGTzGE2WHAkcPMXH8BpB1wMRzmwRaG27BA7Pm8BOEYTSO4ZEwCq6mARCeeix+ctauvaPDcmWREghkVmJrvMaRPwwxcuRVlwFKr2PQuOihW89TxERtKiklmRIBIQi3TyhtnlJPfA3GdODQNNmFw28++rwku+E+PI8FnFq1s7aAkQAdc+fwHuOm0BjplcXUDiEIhFvTsF/T1TNZ7x4DExqDWta0Zf8Nicjzd1d46x1PDKZme3URCRQGkAuOmkB7H/6DkIWAG9aULi1ycfzbP7hmGUtnnTfmPA10jwjJTmudNdkSiLJ6J+QBGWIILYOaF06iwi2uU3fpkVYxIR1zTWWPtVztxV13xpSydaz+YoJMhcJ82kIvuF1kDByTqU5ODZlQ9j5c4lWN26FmVBG5JVWjgmb3LKYlhnf7ek59BAYJe5MqeM35ukVcRWGca1PPe19bvQCF81MbMGJgA01jQSgVA3/97HAZyDEbD2Z3XrMpz/2LHYEW5DMEnJ8ExZOZcnjPQcwvjZY6VARRZoclnF4wCjaimoJd92sKHkje0bx48vGf+xEFSh9CZAw9I1ZAVbBPDq+ufw65d/gJDNuyOBMlWelJnq837O8d+nnKcQ0sC7eUA4ZQIFKdQ+d/qJs75z1K+36SxJziswNThN6etGBXUuKyWJyB6OI5884FQs3VxSH6qJMmimtECmQQfHUIoDN375VyKq9VvaesCqvI8ECIDzJwG7BsO8wpYJFwmyBrSlSEH8NTcAcpzInwZCftl1kyYdZg7+9pXvfLilZ90MSFIEFvl/BMrqm5zWmsv0uvlBeCZqnfLWbpTF6xEAKNgsKu1xq358wu2HEFE0WzM6O8YkcFUdbCIROf1/ZzywMvJJfawDiij/s0CFxUbD2AliqEAZRJkTfOAnn7kjUlUHu6XBf1A9F6oc81GnWtCA60+8/w8/bj73h7uKdhZbIHaDhcPJwizIIDo9VokoCZ935A/+8CZ+gfmAahmKnqtphNVUK2Rt0+F/WtnzzkUqTA7AI3ZymkAQojB9maUqc6hE2WN5yoPPXrTh4ppGZTXVIusE2QGCqAZAE1VPO/2WTSs+uaCN24VFNCIVLgGIKUZnjzOoDtKeYJroBBpRKSAPmXrMLc9iHWlsDJ2uq2mE9WitLc/5y0GPr458cDZ1WxLE1kjqWEECPY7C7PFzcMaBl6Ez2taXbMyc1IHiZE/CyZfWxf9990K4Sa7PPq8Xf19O/7zss1UTvZMbjoO0AmRFeyJP/Ogzt5/zl8ZHrNraWjlQsA8QmDVWU22T+u/Xrj3qkeV3vL65rQd2DpwgGsS3MBwvCLjz1Ccxf78zC6o5MzE7UXyKiN7S8y1DC0wAaGxstM6rvUD+5MXzm6Ki+1wnEpMAWb0jjDkJ4/TNwiRjkt1HKaPvtCQcFnfNlKyi70NE6HEcFNlB3DD/fowp3qfgQPlR4aykJSxLsvxr0ArVZBtQzwsw9QhhZj4YwDvadqWR2qsjd2kG5/HbicDDDAiGO9tzJIBl7hj3t5dPHp0fGLZReqR8GJOR39si+C2ppEOUzfVp0Ee9t6PcZRouKGMqioAIjjAOG8yWJgnAVlC/t8j6MFdsmVMUMPfO+oyGW0dzrPEtRhzvsAIRYW3bSvys+SJ0x7oRsi1IpVKnYHK+xhel/Sz1Nyj5J5T+PonOJyKlhMLo4PgdPz7+7kPuufWeXQDQ0NCghhUwNThNcsfXAdyrKX5ExjWNOl+0dgGuevoMRCUQsgDJg2+fDElIKc3srVJwisphTxCTLv/7xZvu006wHIyhOFBwLgRQpZSSJMjCkOwPRAM6VSkJS9h4c1MzrlpwBmIyjJBtQbHCniOUDWglitiaEJjW8sJFW+ef9fDpOQVlvoAptM15MNxlmwGtzke0e/vO5kW46ukzEI61IWAR9uKNuFgRVHlRWezz0y6Y21B997I6hmggqGENTC9rOux8f2dk8y1OVDpEZKd7hGRpi+TrMRPZQT6+k9h+6vdvqRyUBiqweP3T+Mk/vg7mHq3r9j5wKoZTVGHbM+0jrn249l+35lqF59sFpkZuFF+l8+RFj8/7+0fhd0/isJAQ8TNCftNxs1zFQn5zuRMt6Nrd5iwJlKM9sgNRJwYiF9R9IKZBbvA8dR2lokpILnKsCfb0F/5+0eYvnPNI1GqqhcrHCM2XY8JL65cys6Kz3rvmsruWXvf2JrVlrC2heIi99IG0YHukCzZBgxKIKkZM6hJOnPoe7PmFB+v5OafXVywgppeM3n7y/pdd9n+qgWYvrWOggQd5fAxcDM3/puWa0/5vw4MLdrW3OQESFg+r1LhMO451vSTGpPLJmFQ+Az1OGLawNYOKfj8Fmd8FhC5lI4QFiyx/za/XCBl29v5E3N80hwOEvs+15qDdQktxycDsvZZw47kQ5j2YiGRRScjesXPb6f/xhT8/3dhYY9XmQYUPCjABoKq5ym6pXuT8+1NfqH+7s7muuzUaEwIjuqgQgeAwML5kKu467WnMGnPYnm5axrQT20Ak6pv5Rbuaqp38tvEgSFUd7FduKHJq/zrn0WXdb31ZdsIh4hFdVEgQIRxjjC4ei7tPewZz9vkUHBWDJez4tKAEKjJ77Zd7vZk6YMlKObYVsGMq+ljQCn2lrrnOvqH6Bofz7PgNCjCZmaieiOu5+Ct/PfilT7qWH0XdlMAZGllikUDYUagIjcbdpz+Dw/Y5dk8r5CXhrnh8C8CJALoBcCYVNbIe+IOi+oi4rr4ORNT1w2PvOmty8fR1MsAWmEZ0CWDJCiW2QEdkF6546mS8u+UV2MKGVM6eBMp1AM4ioi7Tl4OikQbrLRuoQdU01ljHTqtef96M7586qWzyLmmxRRDKNbazOajvyMN/8HFIVigOWOiKteEbT52CdzYvgjXywak0KHcBOJWI1uvY9KBNeQ26d1zXXGU3VLc4ty362WcWrL/n2Y1tW0sh/a2wTBYvp0xeLpNzyF8DMgCbBHqkQrFdjrtOW4CjJp2IEbp7tqlr2QXgZCJ6mZltIhrUkTYkreZ66i3OjS3XfO79nQufCke6S6R0pCC3MkH/JGAT+OPe37n3d4YCQ7ECswIze5KA+ycJ933G+nd4fmc9xdj3u7l+771S29BQ7FaZ63GAkB3C7055Ap+e8nnYI6uqsQRgOSoWtkXgDCJ6cShAiaEcznXNdXZDdYMTi/HnFEX+ZllWqZRSErkJH8lzzrnfhlYGlIoZLky9nmbfdzkOhO5/qg98u/1U/UGaimJYwlEOlK4kF3a6ERQ2nlh+HxavW4gxRWWIKSdjNs5VN1EaH1zHNaUUjjWmaHxXzQHfPvPzs856sZmb8x4WGnbABIDm5jq7urrBYeYTADwBYBxGcKpcvGztWo8rFnwBb29ahsoiIKZ231trqMXd6QMOB2BXhkLb97H3PfupC1csHkpQDjkwtRq0iciJRCKH2rb9lBBiP6WUQ4JyB07OPIbHA74lwyILrT3bcOmT87FixweoCAV3Z84hhiUzHCpS9tjAxNWn7nvpGd894TdL6pqvtxuqG5yhHjAYLuBk5ikAHgXw6T2BOc1ubZs71+DSJz+HNa2foDxkwVFymDwfnEAZ2ePtqf/86vTvfuXS46/dUFVXZbc0tDhDP2SGiXgSjEvgZr+fj75loSN20x7JEhZZWN/+MS55shqbOtajNGhBDik4SUlmFFcExER7xsNPnLD8cppC4XylsGUjw6bDNSgFEYWJ6AIAP9PPJwCM2KCgRRYkO5haMQv3nvEcxpdOQDgqYQ3RKkxmOMpiUVZSKmaGDvvZgtrVF9AUCtfV1YnhAsphxZge5iQAQgP1S5o9p6KvIOiIzEySyoElbKzY8Q4uebIandFWFFkCcrCWaTBYAdIqgT3KGrd+9phPX37HKc88hxq2uBEq04q/ex0wE9idkwD8PwBnA4BSSjJx/zVENNybzA20SxVD0CrCW5tacPlTJyPi9KA4QImrHOfI53O9bpZKwCoqDWKfwJQnamf++JsXHXPlpoGUCdxrgem1O/Xv/w7gPwBUwg0E00i2PT/c/i9cteB0tPZsARHnpSOUDvMGSmGVWpWtM8oP+un/nvX2nQ6iGE725IgDpke1k17gNmtb16Zb3ml96cyOcDtsFXIAtshTArff/8n8y/tv6rcXTt834hJx4wr456bxqFetlwTL0bLmSfxlyT2oCJUhHGuHIAu5SCdjZlasZElRiR0qKkKIS/920vSvXHvt8f/1MeoguJ55sJIx9lhgGmlubrarq92A76l/2ff8nd1bf9mmumdGugDBcIhgcfL1bPlpGBoIeIAiGwhaxairuhPHTv0iwtF2N5/Tp5pOhEgA0rIsu7SsDDt2bf9kZdv7Pz9lxkUPS0QxnFX3iAWmbnfhkp2lmOWoy5+pum5V67Jvd2JnRaxTQkBIIhK5qmqcf0phRKVCeWgcfn/6Ahw6/tMDeVSTEQQA7QD+B8DNRNSGOog6AA0NGDEL4kekh+tWMoYECH9+75aZT6784482tq+5pFu0hZwwQIBDIAsjYG2RIEKPwwjZxbjrtAWYN/lziKkobLLTDgxmZhKQApbtOoYyosAPOMK5qZiKPwGARm60aql2xOW9jtxFYQyqbYJwAWrh1n9eO+fV9c98b3Pn+gu6RVtxrJtBEpIEEbLaTWPwxNIpcyGrpHdj1jSZ8GbJrGHIbgD/C+C/iGipcRwBqOFuS+5xwDRSV1cnGuY0EDRAf/fPHxz40vqnr9wW3vi1btE+IRKJgSNgEpAEEsMVpIIEIlIhaJXgrtOewrzJn4sHp/Koa9NvWwD8GcDviWiFB5A8mEm9BWD6BijhpRVPj79v2a9qN3WsvqTTaZ0XFV1wIgA7UERQwxGklgZnwCrGnaf+DZ+acpKSSipLWCIuNPYGgAcANBLRtj0JkHscMBMDFAiJInzrhTNPWLVj6Xk7e7ac3o3O/Rz0GJBqexQEkAANsU3KYCEsFXEk2yJk337mYzhh0qnm09UAFgB4hIgWe+zMPQqQeywwvTbo/HpYfeERAWZZ8u3nz/jMuvaVZ7X17DypR3YeKO1uOFJBRQF2wESQumCAXtjD+aiMzACx+5hsEvMtskAiCARtG7FuC+NKxq3445mvvDCxdPqTAF4morAHkDYAOVJtyL0WmP29+BqraWkToT9IAz9pufDIVTs/nN8e2VEVjnbMjXJksrIjkOxAOi6jsutmKDKZTiaUz0QutpKVcmW34AixN+EeDAi4BTlAFmDZ7h6XlhOEjdDGIrvk7dLgqJb99zl44c1Vj71DRLE4MHKuqvYWgDlsaBRU01Qj+oMUELCxhTeV39Ly3YPX7froqPZI65E9TtecmOyZEZU9E9iWASUcMCkopcCsAQv3Z3xFQnINA/d34f5bCAKxBaFswBExWwS3BO3QqiKrbGlpsOKdaRX7vXX5kf+xbPb4wzrYEwM3YBzJHnYBmBmCtA51tLC+QbQACv2CzwQLATgcKfnl4isn7ezZPn1718bpXZG2qQERnNwRbR3LjNHdsa5yYYkiC1YQMMUbSErIqJKqpzhQ0kGEXeXByh2RWGRjaahi/ZiS8Wsrysat/eUJD2yyKRiWcNAvlF8HUQWI+fV1qgENDCpsn7lXCzOoprHGqmqGjTrYSJog4uaOCAQgYCNAIYTsYjAzMTOF7GIEKASCDZG+Zq1AHeyqOtg1jTUWuLB3S4Ex/bJqfR19MOcD2rp0K2F+C7AQaJkDxlIwGlJUb2UQ6kGYA6paCsJ8AAuBfebU8Oyls7mhvsCGBRm8QV4Y6AUpSEEKUpCCFKQgBSlIQQpSkIIUZISLO+3Lucuqyde0WSbPOJBnyLQt/Nwr1TVz0V6D1TZx94ufOUi2xSsji+ynfO2MZh7aXF/taWlZw0XMFomDcJ/e5dLZJpHoeX9fWCANIhs5WnvlzYZJ9GLZvJR+IeHzGQlALFtmYOZAhgM75b10vqSF5KUp5QA62uzb6ad9FIAyAO2Ztk38PuTMXAHgQABzAMwAMBFuCcmAvk8rgO0A1gJYCWAJEa2Na5OULGoDqALwB31BGvjA4jCANrgr9dYBeA/AIiJ6D4DUA4F9qkDTIHcA+BLcMjGpss6lbpynAVztl008HXwUgL/CX41q1s9yDoB3EnSe+fePAHwD7l45VoJnfRzA9zLdhN5TqeRcADel0YAOgAoAvwfQwMzkt110X0k9YM8A8FUAnwEwOQNcdDPz+wCeAfCwdxlI0ndm5tM5/yKZeSEzn56JXaRHFph5QYb328DMoQzuY+uf12bxbsd5nzXBNW9Lc/5fEp3v83nnM3OPz+dcwMxFzCwyaXv9+4XM/H7c9RQzxzyH4zm8f5dx53Uz8/3MPCPVews9cpXnZy4OqQ/Hw3JVAJ5i5ruZOZih0R7V1435vPdEALMzsKMNe8zP8D7Kc24yMdeKxp0f9fzMVK06zHwogMcAhFL0nbn2cwDOJqIeP9pKs7Fk5hnM/H8AHgRwqKdfjUaxPYflObx/NyaG0lgoAnApgDeZ+Wv6PnYiVU6ek/OZhGBe6AqtBs4BoJjZTwKs9xnTLSAzVeFOhLtfukgFHqPWmLkMwDEeb9OPKve7X7XwHF5SyGgfd21ySGaeptXiaPTtx5OoHYIAXgLwZWNGpVPhHhPhFAB/0rajqRWV7YZhFNeHEsAYAA8x81Qiuil+EwK/qwQ5wyORmJEUBXAagNu0fZHrlYrkYT/4cJjM/Q/XTDss90Dx2MGVAJ4CMC0NKG09MM/Ua4UoA1B+De7Ct3GegS6S4EJ5NKP3UCn6x/ac9xtm/o6+r5UpMCnDw1B+IgnoB/omM39eM0Aut+4z7/QpZi7R1ycfQP6Mh9mHGyjJEzF4FMARHsAk0kw2gA8BnEJEbT6Z0pgIp2nVbUwcOwkgHQ8L2gkOkaY9hX5+CeA2Zq7yYsFPBScJd4esdGJp+6HI02AqAfgNeBlAPTO/iNyWCTLXngzgMAD/9NjSqezLE/MZ2x1o/FB32iMAPofk9ekNg64C8CUi2uLH2/eYCAcCeDjBIE90D3P/JQCW6XtG9WczdCjp0LhQGaWIo9/NzEcCiDBzyp0hDKg2atsrgtS7gdgASvVxCIDLAJyeBJzmYY8HMJuIluY4UGxY47MamJTGviwHMC9DLTJYYpjsfwDUoG+L5mSA2aRBuc4nKEnHsy0AfwRQnsJEMH9v06GnPwN4P5GPoK87D8A1AC5KYZdbeqAdCOAKIvofZrbBzKd63P/4EA8z85pEXpPP0X593LW8EtM/r/KGQJKEix7X33V8hkbM9xZ44nGpwlGfTdIGqcR899NpwkU3x71v/Ps/lCxsYoL9zPxz/d1oinAcM/NOzTrw22ee57wyyXPGt+nTJtTjbUdmtj1HfFt8hZk7dJupJM+vmPljZg66tcL8SUAvthJm0VWSQ+jD1qP1BrhbCqfyjGdmq+X0z+0Adsb9zbzXPGYu16xIKezLE1PYQysxBHtGaUckxszfAHBjCvVtNFIH3A1J3/G7zZ5uE6k1xvUpoh6GKe8notOIaJXu494pSiJyPIepAi2YOUBEj8ItVW5CZ5zA3lQaC8cRke/aPSb2xUSU6lD6cLR6IB1rQwpglgwQmBsBvBv3N9L32wfAkSlUdDr7MgxgMQZ5QzOPd3ymVpkGGJTg+UnbducQ0WsZ7v1o6X69UNvkicwuc+/niOjfDPloAKY0vTQWYswcJKJ/AKjzqG7p+QnP+12Ud3tKv/TONF/rGuBtogBeThAaSgk6j31ZAeDoOPCa66yFO6UKH4H0XIPyBACNHrBQkoHJAGqJ6B9ZbEhqpoivSDLwjE3YCuDr3rLjGb5WTKv3/wKwRtvIlicwDwCbAbwCYLlfr3xAsTc9M5FKPhrgbWwPMEUSNf2rBMAynvpRAMbGsYUp9/eubjAMBmN6Qjaz4e6tGULiHAZvBeHziejJTEHpiYseocNPSODwGCfyd0S0IdudeImINRFEmPleAFfrtl0G4E0d2lpJRK3eTs1niMNh5s8nUZOG0hcNkJGK9Uvu1LMJjP47WhzDzKN0PI88HmS8fakSMObLAHoG0fuO6u1jFnhmXKwEoDSAuZyIHtF2XCyLeK8CcAr6Nvmy4+5j6fe/V/dp1lpDY4EA3Azgf4ioPVmEgIiUX1Vua+/NjvO+Eh2WtjejzHwGgFPRvz6418l4iYiWDzBUFCSiLR47U8XZmWN0uCueUVOpevO9RUlCM/kQR5sVT+s4YLKQjSGUa4noPuMkZXE/8/5VSYjDMPWrOmWNBhrO07joIaJ2j5NsG6fa+Cl+bUxFRJ3a2I3FeV+JDsnMlcz8bQB/we7zzuxhtfocBLXNOyxOYWf2a3yPfTlaq/J4+1LATdv7QDNyPsVk+9gAmgDMTTGrY6bxfkJEt2arWj3vX4TkyS6mHV/yJgnnQpua+3sws1u+hJ1mBgUAxjDzzUlCKWZaycylhuDONx8DYFKCoCrrkEEQbr3wRZnmIabwzhelsDM/GwdUY1/OhZsIkdC+NB5lnoGptA32JwBfTBEWMu3YBeD3psZ6tuSlrzfN008iSf+/o58vV4nkvq7jB5gVAK7NcvYl3pskDcq/ALhugI0bz4pv61heeQI7cy4zjyWiHcaOSQDYRPYlkH1GjV8JM3Md3ATcWArTweQgVAK4i4i+OoAcA/P+49GXUJFodg5wpxp9OX85ZFbl1/lxMnxpEdehRn1vB3A73K33etli4NqBA0S0jZmXADgO/YvoKwCjNIs/h/7B/qoU9uXiPHvjpu3P9bB2OnvWJD3UMvOfiOjpLDWOed9JSd7RDGwHQGeGbChz2Ti5+l46ddsEd1Mk6QkncQ6ubWm2WayBGW9nCrhpcM95vN+xKezLDs3AgxG/HA1/eabxavh2Zm7RjEtZDvCyNIMvCjdHwm/oaQ6AW5B96qA57z9sDI4YAF4N4HydkPBbIurOUfIGe1juuhTxTC/QjtZMmsi+fI+INg5S/DJZJ6oktp+xj/cDcCMRfU+r9Hyk63nTF9kHA4+FuzZroPKg31HqZHjIBExjRvoY7Y0vYub99UgbqF1i7vUm3M2YvExsrn0EM0/0eLEnJmDEePtyMICZDJQCyVc+GnB+m5mPyUNOq5GA9gn8Rk5M38c8oM7kMOdFfccxMzwsjy3HCcAZ04z1IjNPHyA4vVnzGwAsjQOUsTNLAXzKc95nEzQ4JQDmYItZI9UIdz9ISsCG5AHoXZ4sqUzVZ08a0HmB6XeQWTk4UuZjGhWzA8BPUjhAlg4TBbUHvw/chIAjtbqJV1ekXzgGYDqAh5m5aoC2HBsngJlf0Y5OvIoWAOYz81M6pHVkAvvS0uGYfw0hKG0ACwF8TbfreXBngeI9ZzNzdjSA75i4pk9H1QzazUmASZ72GDUUDeEHmB1EdE8WSCkBcBaA/wQwJYEtZcB5PIDLiOiebAPGcfIygG8nYcL5OiY3Vw+iRPblUiLalOU0Xy5A+TqAM+FmcnXpUNKdSWxIY1veyMxPAFjl02b3pgwqJM+8Mtnob2bgzPhZOZpWO/pRn4KZy/TUUcDHlKSZlgwT0cPaG96axMM1mezfMxsq5cDOfAN9Kf7xduYcvRry0ynsy1cHKX6ZCJRLAZxORB2eqMW9cDOcrBQqvQTAHdozpwwYc60GZ7KQkbHN/ZbxNnaxjf4rQ+OPnIWBHDMJ7zcsoV8mSEQfM/PPAdyNxBk+DHcpxpFE9GYWXjqbGJq+51q4qVOHeVja2GlBHbs8OoV9+dIgay2TkLEC7pKIbR6zxGQbXQfg+RSmlAPgZGa+kIgeShfb9GT7dDDzcm1+xeczmPY4Xn9f+SCF9wB8PkmkwZgHRXD3wRyXKqyUt3CRfpmoHvVPALhVx83iH8Z0zFytMsQA7E2T9f2aBmYiNfV1uEt1E9mX3ZpxByN+6VWX6zQoN3hB5QHn35n5b1rFJ0ruMG12CzM/C2CnjwFuAL1YO4KcRJt+mpmnANiY7JqGrIioDcCLPkgrkiZUlv9EYf0iO7XHnCr8sm+OYoIA0JKAEU1nnglgatzn5rxlehEXDQIwTadsBHAyEa1OwnRGE/xQmyiUBESsme9m3ebks62eT4IFM/NTAuCrGnwinZbU638SHbb+WeHHLBjMFYHpTIDSHISLDJheR18RK07AFJREFb0yiPalqW7xAhF9oJ0tmWBwK7i5rcvhTueKNI7QJcz8BR+xTeWxqdck0VQG8N9h5lLPIElFRDLRgb6qdr5MwbwC06Q46ZDDpDQxs/Ycgv8TuIvI/AbIzTMtGorIiDZ3VJpwmIC7KG1LCnPHsOkdzFycCkja1LJ1PaNHkpgv5j7T4c4ymQp1WSlQPVC6/WgjkU9QAghoFfAlDU6ZApircnRfow5f92krGvsyOsj2Ze/9/Szq0qzZCqAB6WeEDgBwvT7PD2veA3dOXCTRMFJHTi7ReQa23wkRo97Rt2vwweifAZY1MAkZZrDHZbFPAfCbFA9i1O27OQJFpt616YgVAFYnqB05XLbVM6o5VfjIC6TrmPnI+JpA8YDXfbUSwEMpzATDnPcz85UmuddjP4oEy7gtzcgGkBYzf1Pb/6PSaE9fwJSZZrBr+6aYmc/SDzI9yf0MAJYDeN9vQdE0tqs5/7UEIZBUrLHYB8MMmXg83xjcRJV0A9MGcKcPZjPqvl6bU4nMBG8c8y5mfpCZZ3lsSJVgGbfUg6KcmS+GWxHlDvRfl5VVHDM+g91B6vXVRegrEVMBN2V/hqfzk80u2AAe0C/hd0otFTi9DLgKwP4p7u+VxRjmEhc+egpuhd9E4SPDmscCuJqIfpdsVs3Dmut1vPRu7TiKJPargrsO/Rw92/SM1nZb0ZfoPA5u3aL5cCv77etx+NKVXlQARD4z2L1slAyUAu7Mwz2mKkSO4qeWjme+ngaYrAeGo0f0YNuXWZrRTAB+AHcpRiAJAxnm+6WOga5NEYc0gL+HmY+HW1g1UTa9d7KiFO58/tf0Z62ec0YliFWnq6+pPPZ+ON9pb6mmoMzo+QER7dDGPQ+QLeMH1cs+z/0YwCe6wznDMNdgs6Y3fHRnCrvQvEsF3OWy6dSn0rboFXBXappcBk7hF3jzNSvhLtWo9IDX8ZhTIkUfmIwqS0cens132luykWFG1j1E9MccLEhLFaNLFZfsjXtqNWfla5+iHItJE7whTfjIqPQzmfncVLFN/d6mhPeXdQgp4CGRRMD37sgRf5hKG+kAaVaIbgBwLhFdT0TRwQqws2cECf3C9wG4MhcL0hKAqXcmB+50X7qZnBaMIDHsR0S7tNOSaomKYc7bdDViTuYQeRysKBGdD+Cn6FtKbECbTEPFH+lwYADZDTfv9GgietQMHOFBbq4PbxY7eUbQJgBXEdHlZvT7YCmZ5l7J7Ewz9+3oOGX8eSZp+bUU9qVKc2/2wd7p2ilb1vSGj0jHIhOVnI7CTT38VbrpSpPgoe3RX8NNS3zeo2rj1XSy8uaM/qWwZRwOdmpT5Ggi+k58kVkbbjJqvtf+7NCN9zjcfV62Z7Lfj7Zb7CTPOTaN8/aKVk3J3nEL+uonJXqW4hT3BtLPhJQnOd/2vFu2Tp4pvfIDuAvtQmmiL99k5ud1raOk5pOp7Ke/8yaALzHzSQCugjtZUpZBPNm7pNfRRNEIoNGsqzJa0/s8NoD3AfwM2W9AZWzGmKblbt3BnXpUdABYR0Q7PW6lX5vSMNidcLNWvM9okgq2JVHp5txHkbg4lbGDVmgPnpKcvxjAz7H75lfm/quSsK35dxOA9QnOV572zyoaYOrLE9HzzHwFgAlIPrtmnJBiv/fT1zcE8gKAF/SOGVUAToCbETZNxyZDcX0TQV/yzntaKy3SThs8gOSEOQKDGOMwHrocIQ7GiJEBLN/N5B6WAWvc3yv1gCjXTEqalDoAbPZWcDPPamzWVJMp/x/UIyNRH0y8xAAAAABJRU5ErkJggg==">
+      <div class="header-text">
+        <div class="header-org">Badan Meteorologi, Klimatologi, dan Geofisika</div>
+        <div class="header-title">Rekapitulasi Analisis Kecelakaan Kapal</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- FILTER -->
+  <button class="filter-show-btn" id="filterShowBtn" onclick="toggleFilters()">Tampilkan Filter</button>
+  <div class="filter-card" id="filterCard">
+    <button class="filter-toggle" id="filterToggleBtn" onclick="toggleFilters()" title="Sembunyikan filter">Hide</button>
+    <div class="filters">
+
+      <div class="filter-block">
+        <div class="filter-label">Tahun</div>
+        <select id="yearFilter" onchange="applyFilter()">
+          <option value="ALL">Semua Tahun</option>
+        </select>
+        <div class="range-group">
+          <select id="yearFrom" onchange="applyFilter()">
+            <option value="ALL">Dari Tahun</option>
+          </select>
+          <select id="yearTo" onchange="applyFilter()">
+            <option value="ALL">Sampai Tahun</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-label">Bulan</div>
+        <select id="monthFilter" onchange="applyFilter()">
+          <option value="ALL">Semua Bulan</option>
+        </select>
+        <div class="range-group">
+          <select id="monthFrom" onchange="applyFilter()">
+            <option value="ALL">Dari Bulan</option>
+          </select>
+          <select id="monthTo" onchange="applyFilter()">
+            <option value="ALL">Sampai Bulan</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-label">Provinsi</div>
+        <select id="provinceFilter" onchange="applyFilter()">
+          <option value="ALL">Semua Provinsi</option>
+        </select>
+      </div>
+
+      <div class="filter-block">
+        <div class="filter-label">Kondisi</div>
+        <select id="conditionFilter" onchange="applyFilter()">
+          <option value="ALL">Semua Kondisi</option>
+        </select>
+        <div class="filter-actions">
+          <button class="reset-btn" onclick="resetFilter()">Reset Filter</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- STATISTICS -->
+  <div class="stats">
+
+    <div class="stat-card total">
+      <div class="stat-text">
+        <div class="stat-label">Total Kejadian</div>
+        <div class="stat-value" id="totalEvents">0</div>
+      </div>
+    </div>
+    <div class="stat-card sunk">
+      <div class="stat-text">
+        <div class="stat-label">Tenggelam</div>
+        <div class="stat-value" id="sunkEvents">0</div>
+      </div>
+    </div>
+    <div class="stat-card grounded">
+      <div class="stat-text">
+        <div class="stat-label">Kandas</div>
+        <div class="stat-value" id="groundedEvents">0</div>
+      </div>
+    </div>
+    <div class="stat-card fire">
+      <div class="stat-text">
+        <div class="stat-label">Terbakar</div>
+        <div class="stat-value" id="fireEvents">0</div>
+      </div>
+    </div>
+    <div class="stat-card other">
+      <div class="stat-text">
+        <div class="stat-label">Kondisi Lainnya</div>
+        <div class="stat-value" id="otherEvents">0</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- CHARTS -->
+  <div class="charts">
+
+    <div class="chart-card" id="monthlyCard">
+      <div class="chart-title" id="chartTitle1">Jumlah Kejadian per Bulan</div>
+      <div class="chart-wrapper">
+        <canvas id="monthlyChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card" id="conditionCard">
+      <div class="chart-title" id="chartTitle2">Kejadian Berdasarkan Kondisi</div>
+      <div class="chart-wrapper">
+        <canvas id="conditionChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card" id="yearCard">
+      <div class="chart-title" id="chartTitleYear">Distribusi Kejadian per Tahun</div>
+      <div class="chart-wrapper">
+        <canvas id="yearChart"></canvas>
+      </div>
+    </div>
+
+    <div class="chart-card chart-card-wide" id="provinceCard">
+      <div class="chart-title" id="chartTitle3">10 Provinsi dengan Jumlah Kejadian Terbanyak</div>
+      <div class="chart-wrapper province-chart-wrapper">
+        <canvas id="provinceChart"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- MAP -->
+  <div class="map-card" id="mapCard">
+    <div class="map-head">
+      <div class="chart-title">Peta Sebaran Kecelakaan Kapal</div>
+      <button type="button" class="map-reset-btn" onclick="resetMapView()">Lihat semua zona</button>
+    </div>
+    <div class="map-wrapper">
+      <div id="shipMap"></div>
+      <div class="map-empty" id="mapEmpty">Tidak ada kejadian yang dapat ditampilkan pada peta.</div>
+    </div>
+    <div class="map-legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#B42318"></span>Tenggelam</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#C2570C"></span>Kandas</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#D4A017"></span>Terbakar</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#8A94A6"></span>Kondisi Lainnya</span>
+    </div>
+  </div>
+
+  <!-- TABLE -->
+  <div class="table-card">
+
+    <div class="table-header">
+      <div class="table-title">Ringkasan Analisis Kecelakaan Kapal *</div>
+
+      <div class="result-count" id="resultCount">0 data</div>
+
+      <div class="table-search">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+        <input type="text" id="tableSearch" placeholder="Cari data kejadian..." oninput="applyFilter()">
+      </div>
+    </div>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>No</th>
+            <th>Tahun</th>
+            <th>Bulan</th>
+            <th>Tanggal</th>
+            <th>Nama Kapal</th>
+            <th>Kondisi</th>
+            <th>Lokasi Kejadian</th>
+            <th>Cuaca</th>
+            <th>Gelombang (m)</th>
+            <th>Arah Angin</th>
+            <th>Kec. Angin (knot)</th>
+            <th>Kec. Arus (cm/s)</th>
+          </tr>
+        </thead>
+
+        <tbody id="tableBody"></tbody>
+      </table>
+    </div>
+
+    <div class="table-pagination" id="tablePagination">
+      <button
+        type="button"
+        class="pagination-btn pagination-prev"
+        id="prevPageBtn"
+        onclick="changeTablePage(-1)">
+        ‹ Back
+      </button>
+
+      <div class="pagination-pages" id="paginationPages"></div>
+
+      <button
+        type="button"
+        class="pagination-btn pagination-next"
+        id="nextPageBtn"
+        onclick="changeTablePage(1)">
+        Next ›
+      </button>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+  let allData = [];
+  let filteredData = [];
+  let monthlyChart = null;
+  let conditionChart = null;
+  let yearChart = null;
+  let provinceChart = null;
+  let chartMode = 'default';
+  let selectedChartMonth = null;
+  let currentTablePage = 1;
+  const TABLE_PAGE_SIZE = 10;
+
+  const months = [
+    'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+    'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'
+  ];
+
+  window.onload = function() {
+    if (window.Chart) {
+      Chart.defaults.font.family = 'Inter, "Segoe UI", Roboto, Arial, sans-serif';
+      Chart.defaults.color = '#475467';
+      Chart.defaults.borderColor = '#E4E8EE';
+    }
+
+    google.script.run
+      .withSuccessHandler(function(data) {
+        allData = Array.isArray(data) ? data : [];
+        initializeFilters();
+        filteredData = allData.slice();
+        updateDashboard();
+        toggleFilters(); // filter disembunyikan saat pertama dimuat
+
+        document.getElementById('loading').style.display = 'none';
+      })
+      .withFailureHandler(function(error) {
+        document.getElementById('loading').innerHTML =
+          '<div class="loading-box">' +
+          '<b>Gagal memuat data</b><br><br>' +
+          escapeHtml(error.message || 'Terjadi kesalahan.') +
+          '</div>';
+      })
+      .getDashboardData(false);
+  };
+
+  function initializeFilters() {
+    const years = [...new Set(allData.map(d => Number(d.tahun)).filter(Boolean))]
+      .sort((a,b) => b-a);
+
+    populateSelect('yearFilter', years, 'Semua Tahun');
+    populateSelect('yearFrom', years.slice().sort((a,b) => a-b), 'Dari Tahun');
+    populateSelect('yearTo', years.slice().sort((a,b) => a-b), 'Sampai Tahun');
+
+    populateSelect('monthFilter', months, 'Semua Bulan');
+    populateSelect('monthFrom', months, 'Dari Bulan');
+    populateSelect('monthTo', months, 'Sampai Bulan');
+
+    const provinces = [...new Set(
+      allData.map(d => String(d.provinsi || '').trim()).filter(Boolean)
+    )].sort((a,b) => a.localeCompare(b, 'id'));
+
+    populateSelect('provinceFilter', provinces, 'Semua Provinsi');
+
+    const conditions = [...new Set(
+      allData.map(d => String(d.kondisi || '').trim()).filter(Boolean)
+    )].sort((a,b) => a.localeCompare(b, 'id'));
+
+    populateSelect('conditionFilter', conditions, 'Semua Kondisi');
+  }
+
+  function populateSelect(id, values, defaultLabel) {
+    const select = document.getElementById(id);
+    select.innerHTML = '<option value="ALL">' + escapeHtml(defaultLabel) + '</option>';
+
+    values.forEach(value => {
+      const option = document.createElement('option');
+      option.value = value;
+      option.textContent = value;
+      select.appendChild(option);
+    });
+  }
+
+  function toggleFilters() {
+    const card = document.getElementById('filterCard');
+    const showBtn = document.getElementById('filterShowBtn');
+    if (!card || !showBtn) return;
+
+    const hidden = card.classList.toggle('is-hidden');
+    showBtn.classList.toggle('is-visible', hidden);
+  }
+
+  function applyFilter() {
+    const year = document.getElementById('yearFilter').value;
+    const yearFrom = document.getElementById('yearFrom').value;
+    const yearTo = document.getElementById('yearTo').value;
+    const month = document.getElementById('monthFilter').value;
+    const monthFrom = document.getElementById('monthFrom').value;
+    const monthTo = document.getElementById('monthTo').value;
+    const province = document.getElementById('provinceFilter').value;
+    const condition = document.getElementById('conditionFilter').value;
+    const search = document.getElementById('tableSearch').value.toLowerCase().trim();
+
+    let minYear = yearFrom === 'ALL' ? null : Number(yearFrom);
+    let maxYear = yearTo === 'ALL' ? null : Number(yearTo);
+
+    if (minYear !== null && maxYear !== null && minYear > maxYear) {
+      [minYear, maxYear] = [maxYear, minYear];
+    }
+
+    let minMonth = monthFrom === 'ALL' ? null : months.indexOf(monthFrom);
+    let maxMonth = monthTo === 'ALL' ? null : months.indexOf(monthTo);
+
+    if (minMonth !== null && maxMonth !== null && minMonth > maxMonth) {
+      [minMonth, maxMonth] = [maxMonth, minMonth];
+    }
+
+    if (province !== 'ALL' || condition !== 'ALL') {
+      chartMode = 'grouped';
+      selectedChartMonth = null;
+    } else if (month !== 'ALL') {
+      chartMode = 'monthLine';
+      selectedChartMonth = month;
+    } else {
+      chartMode = 'default';
+      selectedChartMonth = null;
+    }
+
+    currentTablePage = 1;
+
+    filteredData = allData.filter(d => {
+      if (year !== 'ALL' && String(d.tahun) !== year) return false;
+
+      if (minYear !== null && d.tahun < minYear) return false;
+      if (maxYear !== null && d.tahun > maxYear) return false;
+
+      if (month !== 'ALL' && d.bulan !== month) return false;
+
+      const eventMonth = months.indexOf(d.bulan);
+      if (minMonth !== null && eventMonth < minMonth) return false;
+      if (maxMonth !== null && eventMonth > maxMonth) return false;
+
+      if (province !== 'ALL' && d.provinsi !== province) return false;
+
+      if (condition !== 'ALL' && d.kondisi !== condition) return false;
+
+      if (search) {
+        const searchable = [
+          d.tahun, d.bulan, d.tanggal, d.namaKapal, d.kondisi,
+          d.lokasi, d.provinsi, d.cuaca, d.gelombang,
+          d.arahAngin, d.angin, d.arus
+        ].join(' ').toLowerCase();
+
+        if (!searchable.includes(search)) return false;
+      }
+
+      return true;
+    });
+
+    updateDashboard();
+  }
+
+  function resetFilter() {
+    [
+      'yearFilter', 'yearFrom', 'yearTo',
+      'monthFilter', 'monthFrom', 'monthTo',
+      'provinceFilter', 'conditionFilter'
+    ].forEach(id => {
+      document.getElementById(id).value = 'ALL';
+    });
+
+    document.getElementById('tableSearch').value = '';
+
+    filteredData = allData.slice();
+    chartMode = 'default';
+    selectedChartMonth = null;
+    updateDashboard();
+  }
+
+  function updateDashboard() {
+    updateStatistics();
+    updateCharts();
+    updateMap();
+    updateTable();
+  }
+
+  function normalize(value) {
+    return String(value || '').toLowerCase().trim();
+  }
+
+  function conditionCategory(value) {
+    const text = normalize(value);
+
+    if (text.includes('tenggelam')) return 'Tenggelam';
+    if (text.includes('kandas')) return 'Kandas';
+    if (text.includes('terbakar')) return 'Terbakar';
+
+    return 'Kondisi Lainnya';
+  }
+
+  function updateStatistics() {
+    const total = filteredData.length;
+
+    let sunk = 0;
+    let grounded = 0;
+    let fire = 0;
+
+    filteredData.forEach(d => {
+      const category = conditionCategory(d.kondisi);
+
+      if (category === 'Tenggelam') sunk++;
+      else if (category === 'Kandas') grounded++;
+      else if (category === 'Terbakar') fire++;
+    });
+
+    document.getElementById('totalEvents').textContent = total;
+    document.getElementById('sunkEvents').textContent = sunk;
+    document.getElementById('groundedEvents').textContent = grounded;
+    document.getElementById('fireEvents').textContent = fire;
+    document.getElementById('otherEvents').textContent =
+      total - sunk - grounded - fire;
+  }
+
+  function destroyChart(chart) {
+    if (chart) chart.destroy();
+  }
+
+  function getYearCounts(data) {
+    if (!data.length) return [];
+
+    const years = data
+      .map(d => Number(d.tahun))
+      .filter(Number.isFinite);
+
+    if (!years.length) return [];
+
+    const minYear = 2011;
+    const maxYear = Math.max(...years, minYear);
+    const counts = {};
+
+    data.forEach(d => {
+      const y = Number(d.tahun);
+      if (!Number.isFinite(y)) return;
+      counts[y] = (counts[y] || 0) + 1;
+    });
+
+    const result = [];
+    for (let year = minYear; year <= maxYear; year++) {
+      result.push({
+        year: String(year),
+        count: counts[year] || 0
+      });
+    }
+
+    return result;
+  }
+
+  function getProvinceCounts(data) {
+    const counts = {};
+
+    data.forEach(d => {
+      const province = String(d.provinsi ?? '').trim();
+      if (!province) return;
+
+      counts[province] = (counts[province] || 0) + 1;
+    });
+
+    return Object.entries(counts)
+      .map(([province, count]) => ({
+        province,
+        count
+      }))
+      .sort((a, b) => b.count - a.count || a.province.localeCompare(b.province, 'id'))
+      .slice(0, 10);
+  }
+
+  // Gradasi hijau tua berdasarkan peringkat (tidak dipakai kondisi lain).
+  function provinceRankColor(index, total) {
+    const from = [11, 61, 46];     // #0B3D2E (peringkat 1)
+    const to = [63, 125, 98];      // #3F7D62 (peringkat terakhir)
+    const t = total > 1 ? index / (total - 1) : 0;
+    const c = from.map((v, i) => Math.round(v + (to[i] - v) * t));
+    return 'rgb(' + c.join(',') + ')';
+  }
+
+  function makeProvinceBarChart(canvasId, data) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !data.length) return null;
+
+    const provinceValueLabelPlugin = {
+      id: 'provinceValueLabelPlugin',
+      afterDatasetsDraw(chart) {
+        const ctx = chart.ctx;
+        const meta = chart.getDatasetMeta(0);
+        const dataset = chart.data.datasets[0];
+
+        ctx.save();
+        ctx.fillStyle = '#0F2A47';
+        ctx.font = '700 13px Inter, Arial, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+
+        meta.data.forEach((bar, index) => {
+          const value = Number(dataset.data[index] || 0);
+          ctx.fillText(String(value), bar.x + 8, bar.y);
+        });
+
+        ctx.restore();
+      }
+    };
+
+    return new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: data.map(d => d.province),
+        datasets: [{
+          label: 'Jumlah Kejadian',
+          data: data.map(d => d.count),
+          backgroundColor: data.map((d, i) => provinceRankColor(i, data.length)),
+          borderWidth: 0,
+          borderRadius: 6,
+          borderSkipped: false
+        }]
+      },
+      plugins: [provinceValueLabelPlugin],
+      options: {
+        indexAxis: 'y',
+        layout: { padding: { right: 34 } },
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const total = context.dataset.data.reduce(
+                  (sum, value) => sum + Number(value || 0), 0
+                );
+                const value = Number(context.raw || 0);
+                const percent = total
+                  ? ((value / total) * 100).toFixed(1)
+                  : '0.0';
+
+                return percent + '%';
+              }
+            }
+          },
+          title: { display: false }
+        },
+        scales: {
+          x: {
+            beginAtZero: true,
+            grace: '12%',
+            ticks: { display: false },
+            grid: { display: false, drawBorder: false }
+          },
+          y: {
+            grid: { display: false, drawBorder: false },
+            border: { display: false },
+            ticks: {
+              autoSkip: false,
+              color: '#374151',
+              font: {
+                size: 12,
+                weight: '600'
+              },
+              padding: 8
+            }
+          }
+        },
+        animation: {
+          duration: 0
+        }
+      }
+    });
+  }
+
+  function getMonthCounts(data) {
+    const monthMap = {
+      'januari': 0,
+      'februari': 1,
+      'maret': 2,
+      'april': 3,
+      'mei': 4,
+      'juni': 5,
+      'juli': 6,
+      'agustus': 7,
+      'september': 8,
+      'oktober': 9,
+      'november': 10,
+      'desember': 11
+    };
+
+    const monthNames = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
+
+    const counts = Array(12).fill(0);
+
+    data.forEach(d => {
+      const rawMonth = String(d.bulan ?? '').trim().toLowerCase();
+
+      // Data utama menggunakan nama bulan lengkap.
+      let monthIndex = monthMap[rawMonth];
+
+      // Tetap kompatibel jika ada data lama yang memakai angka 1–12.
+      if (
+        monthIndex === undefined &&
+        /^\d+$/.test(rawMonth)
+      ) {
+        const numericMonth = Number(rawMonth);
+
+        if (numericMonth >= 1 && numericMonth <= 12) {
+          monthIndex = numericMonth - 1;
+        }
+      }
+
+      // Dukungan tambahan untuk data yang sudah memakai singkatan.
+      if (monthIndex === undefined) {
+        const shortMap = {
+          'jan': 0,
+          'feb': 1,
+          'mar': 2,
+          'apr': 3,
+          'mei': 4,
+          'may': 4,
+          'jun': 5,
+          'jul': 6,
+          'agu': 7,
+          'aug': 7,
+          'sep': 8,
+          'okt': 9,
+          'oct': 9,
+          'nov': 10,
+          'des': 11,
+          'dec': 11
+        };
+
+        monthIndex = shortMap[rawMonth];
+      }
+
+      if (monthIndex !== undefined) {
+        counts[monthIndex]++;
+      }
+    });
+
+    return monthNames.map((month, i) => ({
+      month,
+      count: counts[i]
+    }));
+  }
+
+  function makeBarOptions(horizontal) {
+    return {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: { legend: { display: false } },
+      scales: horizontal ? {
+        x: { beginAtZero: true, ticks: { precision: 0 } },
+        y: { ticks: { autoSkip: false } }
+      } : {
+        y: { beginAtZero: true, ticks: { precision: 0 } }
+      }
+    };
+  }
+
+  function makeConditionDoughnut(data = filteredData, canvasId = 'conditionChart') {
+    const conditionCounts = {
+      'Tenggelam': 0,
+      'Kandas': 0,
+      'Terbakar': 0,
+      'Kondisi Lainnya': 0
+    };
+
+    data.forEach(d => {
+      conditionCounts[conditionCategory(d.kondisi)]++;
+    });
+
+    return new Chart(
+      document.getElementById(canvasId).getContext('2d'),
+      {
+        type: 'doughnut',
+        data: {
+          labels: Object.keys(conditionCounts),
+          datasets: [{
+            data: Object.values(conditionCounts),
+            backgroundColor: ['#B42318','#C2570C','#D4A017','#8A94A6'],
+            borderColor: '#ffffff',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { usePointStyle: true, boxWidth: 8, padding: 14 } },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const total = context.dataset.data.reduce((sum, value) => sum + Number(value || 0), 0);
+                  const value = Number(context.raw || 0);
+                  const percent = total ? ((value / total) * 100).toFixed(1) : '0.0';
+                  return context.label + ': ' + percent + '%';
+                }
+              }
+            }
+          }
+        }
+      }
+    );
+  }
+
+  function makeBarChart(
+    canvasId,
+    labels,
+    values,
+    barColor,
+    datasetLabel,
+    onClickHandler = null
+  ) {
+    const canvas = document.getElementById(canvasId);
+
+    return new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: datasetLabel || 'Jumlah Kejadian',
+          data: values,
+          backgroundColor: barColor,
+          borderColor: barColor,
+          borderWidth: 1,
+          borderRadius: 3
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const total = context.dataset.data.reduce(
+                  (sum, value) => sum + Number(value || 0), 0
+                );
+                const value = Number(context.raw || 0);
+                const percent = total
+                  ? ((value / total) * 100).toFixed(1)
+                  : '0.0';
+
+                return percent + '%';
+              }
+            }
+          },
+          title: { display: false }
+        },
+        scales: {
+          x: {
+            ticks: {
+              autoSkip: false,
+              maxRotation: 0,
+              minRotation: 0
+            }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { precision: 0 }
+          }
+        },
+        onClick: function(evt, elements) {
+          if (!onClickHandler || !elements.length) return;
+          onClickHandler(elements[0].index);
+        }
+      }
+    });
+  }
+
+  function clearChartArea(canvasId, message = 'Tidak ada data') {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const wrapper = canvas.parentElement;
+    if (!wrapper) return;
+
+    canvas.style.display = 'none';
+
+    let empty = wrapper.querySelector('.chart-empty');
+    if (!empty) {
+      empty = document.createElement('div');
+      empty.className = 'chart-empty';
+      wrapper.appendChild(empty);
+    }
+
+    empty.textContent = message;
+    empty.style.display = 'flex';
+  }
+
+  function showChartCanvas(canvasId) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+
+    const wrapper = canvas.parentElement;
+    canvas.style.display = 'block';
+
+    if (wrapper) {
+      const empty = wrapper.querySelector('.chart-empty');
+      if (empty) empty.style.display = 'none';
+    }
+  }
+
+  function getDayOnly(value) {
+    const text = String(value ?? '').trim();
+
+    const match = text.match(/^(\d{1,2})\b/);
+    if (match) return match[1];
+
+    const numericMatch = text.match(/^(\d{1,2})[\/-]/);
+    if (numericMatch) return numericMatch[1];
+
+    return text;
+  }
+
+  function updateCharts() {
+    const title1 = document.getElementById('chartTitle1');
+    const title2 = document.getElementById('chartTitle2');
+    const titleYear = document.getElementById('chartTitleYear');
+    const title3 = document.getElementById('chartTitle3');
+    const yearCard = document.getElementById('yearCard');
+    const provinceCard = document.getElementById('provinceCard');
+
+    destroyChart(monthlyChart);
+    destroyChart(conditionChart);
+    destroyChart(yearChart);
+    destroyChart(provinceChart);
+    monthlyChart = null;
+    conditionChart = null;
+    yearChart = null;
+    provinceChart = null;
+
+    showChartCanvas('monthlyChart');
+    showChartCanvas('conditionChart');
+    showChartCanvas('yearChart');
+    showChartCanvas('provinceChart');
+
+    if (!filteredData.length) {
+      title1.textContent = 'Tidak ada data';
+      title2.textContent = 'Tidak ada data';
+      titleYear.textContent = 'Tidak ada data';
+      title3.textContent = 'Tidak ada data';
+      if (yearCard) yearCard.style.display = 'none';
+      if (provinceCard) provinceCard.style.display = 'none';
+      clearChartArea('monthlyChart');
+      clearChartArea('conditionChart');
+      clearChartArea('yearChart');
+      clearChartArea('provinceChart');
+      return;
+    }
+
+    if (chartMode === 'default') {
+      const hasActiveFilter =
+        document.getElementById('yearFilter').value !== 'ALL' ||
+        document.getElementById('yearFrom').value !== 'ALL' ||
+        document.getElementById('yearTo').value !== 'ALL' ||
+        document.getElementById('monthFilter').value !== 'ALL' ||
+        document.getElementById('monthFrom').value !== 'ALL' ||
+        document.getElementById('monthTo').value !== 'ALL' ||
+        document.getElementById('provinceFilter').value !== 'ALL' ||
+        document.getElementById('conditionFilter').value !== 'ALL' ||
+        document.getElementById('tableSearch').value.trim() !== '';
+
+      if (yearCard) yearCard.style.display = hasActiveFilter ? 'none' : '';
+      if (provinceCard) provinceCard.style.display = hasActiveFilter ? 'none' : '';
+
+      title1.textContent = 'Jumlah Kejadian per Bulan';
+      title2.textContent = 'Kejadian Berdasarkan Kondisi';
+      titleYear.textContent = 'Distribusi Kejadian per Tahun';
+      title3.textContent = '10 Provinsi dengan Jumlah Kejadian Terbanyak';
+
+      const monthData = getMonthCounts(filteredData);
+      monthlyChart = makeBarChart(
+        'monthlyChart',
+        monthData.map(d => d.month),
+        monthData.map(d => d.count),
+        '#1D6FB8',
+        'Jumlah Kejadian',
+        function(index) {
+          const clickedMonth = monthData[index]?.month;
+          if (!clickedMonth) return;
+          selectedChartMonth = clickedMonth;
+          chartMode = 'monthLine';
+          updateCharts();
+        }
+      );
+
+      conditionChart = makeConditionDoughnut();
+
+      if (!hasActiveFilter) {
+        const yearData = getYearCounts(allData);
+        if (yearData.length) {
+          yearChart = makeBarChart(
+            'yearChart',
+            yearData.map(d => String(d.year)),
+            yearData.map(d => d.count),
+            '#0F9D8A',
+            'Jumlah Kejadian'
+          );
+        } else {
+          clearChartArea('yearChart');
+        }
+
+        const provinceData = getProvinceCounts(allData);
+        if (provinceData.length) {
+          provinceChart = makeProvinceBarChart('provinceChart', provinceData);
+        } else {
+          clearChartArea('provinceChart');
+        }
+      }
+
+      return;
+    }
+
+    if (chartMode === 'monthLine') {
+      if (yearCard) yearCard.style.display = 'none';
+      if (provinceCard) provinceCard.style.display = 'none';
+
+      const monthName = selectedChartMonth || 'Bulan';
+      const monthData = filteredData.filter(d => d.bulan === monthName);
+      const yearData = getYearCounts(monthData);
+
+      title1.textContent = 'Kejadian per Tahun — ' + monthName;
+      title2.textContent = 'Kejadian Berdasarkan Kondisi — ' + monthName;
+
+      if (yearData.length) {
+        monthlyChart = makeBarChart(
+          'monthlyChart',
+          yearData.map(d => String(d.year)),
+          yearData.map(d => d.count),
+          '#0F9D8A',
+          'Jumlah Kejadian'
+        );
+      } else {
+        clearChartArea('monthlyChart');
+      }
+
+      if (monthData.length) {
+        conditionChart = makeConditionDoughnut(monthData);
+      } else {
+        clearChartArea('conditionChart');
+      }
+      return;
+    }
+
+    // Filter aktif: pertahankan perilaku chart lama.
+    if (yearCard) yearCard.style.display = 'none';
+    if (provinceCard) provinceCard.style.display = 'none';
+
+    const yearData = getYearCounts(filteredData);
+    const monthData = getMonthCounts(filteredData);
+
+    const yearSelected = document.getElementById('yearFilter').value !== 'ALL' ||
+      document.getElementById('yearFrom').value !== 'ALL' ||
+      document.getElementById('yearTo').value !== 'ALL';
+
+    const monthSelected = document.getElementById('monthFilter').value !== 'ALL' ||
+      document.getElementById('monthFrom').value !== 'ALL' ||
+      document.getElementById('monthTo').value !== 'ALL';
+
+    if (yearSelected) {
+      title1.textContent = 'Kejadian Berdasarkan Kondisi';
+      monthlyChart = makeConditionDoughnut(filteredData, 'monthlyChart');
+    } else if (yearData.length) {
+      title1.textContent = 'Distribusi Kejadian per Tahun';
+      monthlyChart = makeBarChart(
+        'monthlyChart',
+        yearData.map(d => String(d.year)),
+        yearData.map(d => d.count),
+        '#0F9D8A',
+        'Jumlah Kejadian'
+      );
+    } else {
+      title1.textContent = 'Tidak ada data';
+      clearChartArea('monthlyChart');
+    }
+
+    if (monthSelected) {
+      title2.textContent = 'Kejadian Berdasarkan Kondisi';
+      conditionChart = makeConditionDoughnut(filteredData, 'conditionChart');
+    } else if (monthData.length) {
+      title2.textContent = 'Distribusi Kejadian per Bulan';
+      conditionChart = makeBarChart(
+        'conditionChart',
+        monthData.map(d => d.month),
+        monthData.map(d => d.count),
+        '#1D6FB8',
+        'Jumlah Kejadian'
+      );
+    } else {
+      title2.textContent = 'Tidak ada data';
+      clearChartArea('conditionChart');
+    }
+  }
+
+  /* ========== PETA SEBARAN ========== */
+  let shipMap = null;
+  let clusterLayer = null;
+
+  const CONDITION_COLORS = {
+    'Tenggelam': '#B42318',
+    'Kandas': '#C2570C',
+    'Terbakar': '#D4A017',
+    'Kondisi Lainnya': '#8A94A6'
+  };
+
+  // Titik jangkar di perairan (laut/selat/teluk, tidak jauh dari pesisir).
+  // Anchor pertama tiap provinsi = default. "tags" = kata kunci pada kolom Lokasi
+  // untuk memilih anchor yang lebih tepat.
+  const SEA_ANCHORS = {
+    'aceh': [
+      { p: [5.5, 97.5], tags: ['lhokseumawe', 'aceh utara', 'bireuen', 'pidie', 'langsa', 'aceh timur', 'tamiang', 'selat malaka', 'malaka'] },
+      { p: [6.1, 95.2], tags: ['sabang', 'banda aceh', 'aceh besar', 'weh', 'andaman'] },
+      { p: [4.0, 95.5], tags: ['meulaboh', 'aceh barat', 'nagan raya', 'aceh jaya', 'calang', 'samudra hindia'] },
+      { p: [3.15, 96.7], tags: ['tapaktuan', 'aceh selatan', 'singkil', 'simeulue', 'subulussalam'] }
+    ],
+    'sumatera utara': [
+      { p: [4.0, 98.9], tags: ['belawan', 'medan', 'deli serdang', 'langkat', 'serdang bedagai', 'tanjung balai', 'asahan', 'batu bara', 'selat malaka', 'malaka'] },
+      { p: [1.55, 98.1], tags: ['sibolga', 'tapanuli', 'nias', 'barus', 'mandailing', 'samudra hindia'] }
+    ],
+    'sumatera barat': [
+      { p: [-0.95, 99.95], tags: ['padang', 'pariaman', 'mentawai', 'pesisir selatan', 'painan', 'samudra hindia'] }
+    ],
+    'riau': [
+      { p: [2.6, 101.2], tags: ['dumai', 'rupat', 'bengkalis', 'rokan hilir', 'bagansiapiapi', 'selat malaka', 'malaka'] },
+      { p: [0.3, 104.0], tags: ['indragiri hilir', 'tembilahan', 'kuala enok', 'selat berhala'] }
+    ],
+    'kepulauan riau': [
+      // Batam & Selat Singapura sisi Indonesia (barat Batam, selatan P. Nipah)
+      { p: [1.06, 103.70], r: 0.02, tags: ['batam', 'nongsa', 'sekupang', 'batu ampar', 'belakang padang', 'nipah', 'selat singapura', 'singapura', 'selat philip', 'johor', 'barelang', 'rempang', 'galang'] },
+      // Karimun, Kundur, Selat Malaka sisi Indonesia
+      { p: [1.12, 103.18], r: 0.02, tags: ['karimun', 'tanjung balai karimun', 'kundur', 'moro', 'durian', 'sugi', 'selat malaka', 'malaka', 'selat karimun'] },
+      // Bintan utara / Laut Natuna bagian barat
+      { p: [1.30, 104.85], r: 0.02, tags: ['tanjung uban', 'lobam', 'berakit', 'bintan utara', 'teluk sebong'] },
+      // Bintan timur & Tanjungpinang (sisi laut terbuka)
+      { p: [1.00, 105.05], r: 0.03, tags: ['bintan', 'tanjung pinang', 'tanjungpinang', 'kijang', 'selat riau', 'mapur', 'laut china selatan', 'laut cina selatan'] },
+      // Lingga & Singkep
+      { p: [-0.35, 105.10], r: 0.03, tags: ['lingga', 'singkep', 'dabo'] },
+      // Anambas
+      { p: [3.40, 105.40], r: 0.05, tags: ['anambas', 'tarempa', 'jemaja', 'siantan'] },
+      // Natuna
+      { p: [4.60, 108.90], r: 0.05, tags: ['natuna', 'ranai', 'laut natuna', 'laut natuna utara', 'bunguran'] }
+    ],
+    'jambi': [
+      { p: [-1.0, 104.9], tags: ['kuala tungkal', 'tanjung jabung', 'muara sabak', 'selat berhala', 'berhala'] }
+    ],
+    'sumatera selatan': [
+      { p: [-3.4, 106.2], tags: ['sungsang', 'banyuasin', 'selat bangka', 'ogan komering ilir', 'oki'] }
+    ],
+    'kepulauan bangka belitung': [
+      { p: [-1.7, 107.9], tags: ['belitung', 'tanjung pandan', 'bangka', 'laut natuna'] },
+      { p: [-2.7, 107.15], tags: ['selat gaspar', 'gaspar'] }
+    ],
+    'bengkulu': [
+      { p: [-4.2, 101.7], tags: ['bengkulu', 'enggano', 'mukomuko', 'samudra hindia'] }
+    ],
+    'lampung': [
+      { p: [-5.95, 105.88], tags: ['selat sunda', 'bakauheni', 'lampung selatan', 'sunda', 'teluk lampung', 'bandar lampung', 'panjang'] },
+      { p: [-6.2, 104.5], tags: ['krui', 'pesisir barat', 'tanggamus', 'samudra hindia'] }
+    ],
+    'dki jakarta': [
+      { p: [-5.98, 106.85], tags: ['teluk jakarta', 'tanjung priok', 'jakarta utara', 'muara baru', 'ancol'] },
+      { p: [-5.88, 106.62], tags: ['kepulauan seribu', 'pulau seribu', 'seribu', 'pramuka', 'tidung', 'harapan'] }
+    ],
+    'banten': [
+      { p: [-5.75, 106.2], tags: ['serang', 'tangerang', 'teluk banten', 'laut jawa', 'merak', 'cilegon'] },
+      { p: [-7.1, 105.6], tags: ['samudra hindia', 'panimbang', 'sumur', 'lebak', 'pandeglang', 'ujung kulon', 'selatan'] }
+    ],
+    'jawa barat': [
+      { p: [-5.9, 107.9], tags: ['indramayu', 'cirebon', 'karawang', 'subang', 'bekasi', 'laut jawa'] },
+      { p: [-8.0, 107.3], tags: ['pelabuhan ratu', 'sukabumi', 'cianjur', 'garut', 'tasikmalaya', 'pangandaran', 'ciamis', 'samudra hindia'] }
+    ],
+    'jawa tengah': [
+      { p: [-6.5, 110.5], tags: ['semarang', 'demak', 'jepara', 'pekalongan', 'tegal', 'rembang', 'brebes', 'pati', 'kendal', 'batang', 'laut jawa'] },
+      { p: [-8.1, 109.1], tags: ['cilacap', 'kebumen', 'purworejo', 'nusakambangan', 'samudra hindia'] }
+    ],
+    'di yogyakarta': [
+      { p: [-8.2, 110.4], tags: ['parangtritis', 'bantul', 'gunungkidul', 'kulon progo', 'samudra hindia'] }
+    ],
+    'jawa timur': [
+      { p: [-6.6, 112.6], tags: ['surabaya', 'gresik', 'lamongan', 'tuban', 'bangkalan', 'selat madura', 'laut jawa', 'bawean'] },
+      { p: [-6.65, 113.8], tags: ['sumenep', 'pamekasan', 'sampang', 'madura', 'kangean'] },
+      { p: [-8.8, 112.5], tags: ['malang', 'blitar', 'trenggalek', 'pacitan', 'tulungagung', 'lumajang', 'jember', 'samudra hindia'] },
+      { p: [-7.95, 114.75], tags: ['banyuwangi', 'selat bali', 'situbondo', 'ketapang'] }
+    ],
+    'bali': [
+      { p: [-7.95, 115.2], tags: ['buleleng', 'singaraja', 'gilimanuk', 'jembrana', 'laut bali', 'laut jawa'] },
+      { p: [-9.05, 115.1], tags: ['badung', 'benoa', 'denpasar', 'jimbaran', 'kuta', 'samudra hindia', 'nusa penida', 'klungkung'] },
+      { p: [-8.55, 115.8], tags: ['padang bai', 'padangbai', 'karangasem', 'amed', 'selat lombok', 'selat badung', 'lombok'] }
+    ],
+    'nusa tenggara barat': [
+      { p: [-8.15, 116.1], tags: ['lombok utara', 'gili', 'selat lombok', 'lembar', 'mataram', 'lombok'] },
+      { p: [-8.0, 118.4], tags: ['sumbawa', 'bima', 'dompu', 'sape', 'teluk saleh', 'moyo', 'labuhan'] },
+      { p: [-9.2, 116.3], tags: ['lombok selatan', 'lombok tengah', 'lombok timur', 'samudra hindia'] }
+    ],
+    'nusa tenggara timur': [
+      { p: [-8.25, 120.0], tags: ['komodo', 'labuan bajo', 'manggarai', 'rinca'] },
+      { p: [-9.95, 123.45], tags: ['kupang', 'rote', 'sabu', 'sawu', 'timor', 'semau'] },
+      { p: [-9.35, 120.3], tags: ['sumba', 'waingapu'] },
+      { p: [-8.2, 122.3], tags: ['maumere', 'sikka', 'flores timur', 'larantuka', 'lembata', 'alor', 'ende', 'flores', 'laut flores'] }
+    ],
+    'kalimantan barat': [
+      { p: [0.1, 108.7], tags: ['pontianak', 'kubu raya', 'mempawah', 'kayong', 'ketapang', 'karimata', 'laut natuna'] },
+      { p: [1.2, 108.6], tags: ['singkawang', 'sambas', 'bengkayang', 'paloh'] }
+    ],
+    'kalimantan tengah': [
+      { p: [-3.8, 112.9], tags: ['sampit', 'kumai', 'kotawaringin', 'pangkalan bun', 'seruyan', 'kuala pembuang', 'katingan', 'pulang pisau', 'laut jawa'] }
+    ],
+    'kalimantan selatan': [
+      { p: [-4.3, 114.5], tags: ['banjarmasin', 'barito kuala', 'tanah laut', 'takisung', 'laut jawa'] },
+      { p: [-3.3, 117.0], tags: ['kotabaru', 'pulau laut', 'tanah bumbu', 'batulicin', 'selat makassar', 'sebuku'] }
+    ],
+    'kalimantan timur': [
+      { p: [-0.9, 117.9], tags: ['balikpapan', 'samarinda', 'kutai kartanegara', 'paser', 'penajam', 'selat makassar', 'muara jawa'] },
+      { p: [0.2, 118.0], tags: ['bontang', 'kutai timur', 'sangatta', 'berau', 'derawan', 'maratua'] }
+    ],
+    'kalimantan utara': [
+      { p: [3.5, 118.5], tags: ['tarakan', 'bunyu', 'nunukan', 'sebatik', 'tana tidung', 'bulungan', 'laut sulawesi'] }
+    ],
+    'sulawesi utara': [
+      { p: [1.75, 124.7], tags: ['manado', 'bunaken', 'minahasa', 'minut', 'laut sulawesi'] },
+      { p: [1.5, 125.6], tags: ['bitung', 'lembeh', 'laut maluku'] },
+      { p: [3.9, 125.6], tags: ['sangihe', 'talaud', 'tahuna', 'siau'] }
+    ],
+    'gorontalo': [
+      { p: [0.15, 122.9], tags: ['gorontalo', 'bone bolango', 'boalemo', 'teluk tomini', 'tomini'] },
+      { p: [1.3, 122.6], tags: ['gorontalo utara', 'kwandang', 'laut sulawesi'] }
+    ],
+    'sulawesi tengah': [
+      { p: [-0.6, 119.4], tags: ['palu', 'donggala', 'parigi', 'tolitoli', 'toli toli', 'selat makassar'] },
+      { p: [-0.9, 121.0], tags: ['poso', 'ampana', 'tojo una', 'togean', 'teluk tomini', 'tomini', 'banggai', 'luwuk'] }
+    ],
+    'sulawesi barat': [
+      { p: [-2.6, 118.5], tags: ['mamuju', 'majene', 'polewali', 'mamasa', 'mamuju utara', 'selat makassar'] }
+    ],
+    'sulawesi selatan': [
+      { p: [-5.4, 118.9], tags: ['makassar', 'takalar', 'maros', 'pangkep', 'barru', 'pare pare', 'parepare', 'spermonde', 'selat makassar'] },
+      { p: [-3.8, 120.9], tags: ['palopo', 'luwu', 'bone', 'teluk bone', 'sinjai', 'bulukumba', 'wajo'] }
+    ],
+    'sulawesi tenggara': [
+      { p: [-4.4, 123.7], tags: ['kendari', 'konawe', 'wawonii', 'buton', 'baubau', 'bau bau', 'muna', 'wakatobi', 'laut banda'] },
+      { p: [-4.1, 121.15], tags: ['kolaka', 'bombana', 'teluk bone', 'bone'] }
+    ],
+    'maluku utara': [
+      { p: [0.8, 126.95], tags: ['ternate', 'tidore', 'halmahera', 'sofifi', 'morotai', 'bacan', 'laut maluku'] }
+    ],
+    'maluku': [
+      { p: [-4.1, 128.2], tags: ['ambon', 'haruku', 'saparua', 'laut banda', 'banda'] },
+      { p: [-2.3, 128.3], tags: ['seram', 'buru', 'laut seram'] }
+    ],
+    'papua barat': [
+      { p: [-0.4, 134.2], tags: ['manokwari', 'teluk doreri', 'mansinam'] },
+      { p: [-3.1, 131.8], tags: ['fakfak', 'kaimana', 'bintuni', 'teluk bintuni'] }
+    ],
+    'papua barat daya': [
+      { p: [-1.5, 130.7], tags: ['sorong', 'raja ampat', 'misool', 'salawati', 'waisai', 'selat dampier', 'dampier'] }
+    ],
+    'papua': [
+      { p: [-2.1, 140.8], tags: ['jayapura', 'sarmi', 'keerom', 'mamberamo', 'samudra pasifik', 'pasifik'] },
+      { p: [-2.4, 135.8], tags: ['nabire', 'biak', 'yapen', 'supiori', 'teluk cenderawasih', 'cenderawasih'] }
+    ],
+    'papua selatan': [
+      { p: [-9.0, 140.4], tags: ['merauke', 'laut arafura', 'arafura'] },
+      { p: [-6.0, 137.8], tags: ['asmat', 'agats', 'mappi', 'boven digoel'] }
+    ],
+    'papua tengah': [
+      { p: [-5.4, 136.5], tags: ['timika', 'mimika', 'laut arafura', 'arafura'] }
+    ],
+    'papua pegunungan': []
+  };
+
+  // Kejadian di sungai tetap diletakkan di sungai.
+  const RIVER_SPOTS = [
+    { prov: 'kalimantan barat', tags: ['kapuas hulu', 'putussibau'], p: [0.83, 112.93] },
+    { prov: 'kalimantan barat', tags: ['sambas'], p: [1.36, 109.3] },
+    { prov: 'kalimantan barat', tags: ['kapuas', 'pontianak', 'landak'], p: [-0.03, 109.33], def: true },
+    { prov: 'kalimantan selatan', tags: ['barito', 'martapura', 'banjarmasin', 'banjar'], p: [-3.32, 114.59], def: true },
+    { prov: 'kalimantan tengah', tags: ['sampit', 'mentaya'], p: [-2.53, 112.95] },
+    { prov: 'kalimantan tengah', tags: ['kahayan', 'palangkaraya', 'palangka raya', 'kapuas', 'barito'], p: [-2.21, 113.92], def: true },
+    { prov: 'kalimantan timur', tags: ['mahakam', 'samarinda', 'kutai'], p: [-0.5, 117.15], def: true },
+    { prov: 'kalimantan utara', tags: ['kayan', 'tanjung selor', 'bulungan'], p: [2.84, 117.37], def: true },
+    { prov: 'sumatera selatan', tags: ['musi', 'palembang', 'ogan', 'komering'], p: [-2.99, 104.76], def: true },
+    { prov: 'jambi', tags: ['batanghari', 'batang hari', 'jambi'], p: [-1.6, 103.61], def: true },
+    { prov: 'riau', tags: ['indragiri', 'rengat'], p: [-0.38, 102.54] },
+    { prov: 'riau', tags: ['siak', 'pekanbaru', 'kampar'], p: [0.53, 101.45], def: true },
+    { prov: 'papua selatan', tags: ['digul', 'tanah merah', 'boven digoel', 'maro', 'merauke'], p: [-6.1, 140.3], def: true }
+  ];
+
+  const PROVINCE_ALIASES = {
+    'kep riau': 'kepulauan riau',
+    'bangka belitung': 'kepulauan bangka belitung',
+    'kep bangka belitung': 'kepulauan bangka belitung',
+    'babel': 'kepulauan bangka belitung',
+    'jakarta': 'dki jakarta',
+    'daerah khusus ibukota jakarta': 'dki jakarta',
+    'yogyakarta': 'di yogyakarta',
+    'daerah istimewa yogyakarta': 'di yogyakarta',
+    'diy': 'di yogyakarta',
+    'ntb': 'nusa tenggara barat',
+    'ntt': 'nusa tenggara timur',
+    'nanggroe aceh darussalam': 'aceh',
+    'nad': 'aceh',
+    'sulut': 'sulawesi utara',
+    'sulteng': 'sulawesi tengah',
+    'sulsel': 'sulawesi selatan',
+    'sultra': 'sulawesi tenggara',
+    'sulbar': 'sulawesi barat',
+    'kaltim': 'kalimantan timur',
+    'kalsel': 'kalimantan selatan',
+    'kalbar': 'kalimantan barat',
+    'kalteng': 'kalimantan tengah',
+    'kaltara': 'kalimantan utara'
+  };
+
+  function normalizeText(value) {
+    return ' ' + String(value || '')
+      .toLowerCase()
+      .replace(/sumatra/g, 'sumatera')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim() + ' ';
+  }
+
+  function textHasTag(normalizedText, tag) {
+    return normalizedText.includes(' ' + tag + ' ');
+  }
+
+  function provinceKey(value) {
+    const text = normalizeText(value)
+      .replace(/\b(provinsi|prov)\b/g, ' ')
+      .replace(/\s+/g, ' ');
+    const key = text.trim();
+    if (!key) return null;
+
+    if (SEA_ANCHORS[key]) return key;
+    if (PROVINCE_ALIASES[key]) return PROVINCE_ALIASES[key];
+
+    const names = Object.keys(SEA_ANCHORS)
+      .concat(Object.keys(PROVINCE_ALIASES))
+      .sort((a, b) => b.length - a.length);
+
+    for (const name of names) {
+      if (textHasTag(text, name)) return PROVINCE_ALIASES[name] || name;
+    }
+    return null;
+  }
+
+  function inIndonesiaBounds(lat, lon) {
+    return lat >= -12 && lat <= 8 && lon >= 94 && lon <= 142;
+  }
+
+  function toNumber(value) {
+    return parseFloat(String(value).replace(',', '.'));
+  }
+
+  // Membaca koordinat bila kolom Lokasi memuatnya (DMS / desimal).
+  function parseCoordinates(text) {
+    let t = String(text || '');
+    if (!t) return null;
+
+    t = t
+      .replace(/[º˚]/g, '°')
+      .replace(/[′’‘`´]/g, "'")
+      .replace(/[″”“]/g, '"')
+      .replace(/\bLS\b/g, 'S')
+      .replace(/\bLU\b/g, 'N')
+      .replace(/\bBT\b/g, 'E')
+      .replace(/\bBB\b/g, 'W');
+
+    const pickPair = (hits) => {
+      const lat = hits.find(h => h.h === 'S' || h.h === 'N');
+      const lon = hits.find(h => h.h === 'E' || h.h === 'W');
+      if (!lat || !lon) return null;
+      const la = lat.v * (lat.h === 'S' ? -1 : 1);
+      const lo = lon.v * (lon.h === 'W' ? -1 : 1);
+      return inIndonesiaBounds(la, lo) ? [la, lo] : null;
+    };
+
+    const dms = /(\d{1,3})\s*(?:°|\s)\s*(?:(\d{1,2}(?:[.,]\d+)?)\s*(?:'|\s)\s*)?(?:(\d{1,2}(?:[.,]\d+)?)\s*(?:"|'')\s*)?([NSEW])(?![A-Za-z])/gi;
+    let m;
+    const hits = [];
+    while ((m = dms.exec(t)) !== null) {
+      const deg = toNumber(m[1]);
+      const min = m[2] ? toNumber(m[2]) : 0;
+      const sec = m[3] ? toNumber(m[3]) : 0;
+      hits.push({ v: deg + min / 60 + sec / 3600, h: m[4].toUpperCase() });
+    }
+    let pair = pickPair(hits);
+    if (pair) return pair;
+
+    const dec = /(\d{1,3}(?:[.,]\d+)?)\s*°?\s*([NSEW])(?![A-Za-z])/gi;
+    const hits2 = [];
+    while ((m = dec.exec(t)) !== null) {
+      hits2.push({ v: toNumber(m[1]), h: m[2].toUpperCase() });
+    }
+    pair = pickPair(hits2);
+    if (pair) return pair;
+
+    const plain = t.match(/(-?\d{1,3}[.,]\d{2,})\s*[,;\s]\s*(-?\d{1,3}[.,]\d{2,})/);
+    if (plain) {
+      const a = toNumber(plain[1]);
+      const b = toNumber(plain[2]);
+      if (inIndonesiaBounds(a, b)) return [a, b];
+      if (inIndonesiaBounds(b, a)) return [b, a];
+    }
+
+    return null;
+  }
+
+  function stableHash(str) {
+    let h = 2166136261;
+    for (let i = 0; i < str.length; i++) {
+      h ^= str.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return (h >>> 0);
+  }
+
+  function withJitter(base, seed, maxDeg) {
+    const h = stableHash(seed);
+    const angle = (h % 360) * Math.PI / 180;
+    const radius = maxDeg * (0.25 + ((h >>> 9) % 75) / 100);
+    return [base[0] + Math.sin(angle) * radius, base[1] + Math.cos(angle) * radius];
+  }
+
+  // Pengaman: titik tidak boleh jatuh di Singapura / Johor (kotak kasar).
+  function inForeignWaters(lat, lon) {
+    if (lat >= 1.17 && lat <= 1.50 && lon >= 103.55 && lon <= 104.10) return true;
+    if (lat >= 1.28 && lat <= 2.80 && lon >= 103.30 && lon <= 104.35) return true;
+    return false;
+  }
+
+  function chooseSeaAnchor(d, provKey, locText) {
+    const list = provKey ? SEA_ANCHORS[provKey] : null;
+
+    // Provinsi tanpa pantai (mis. Papua Pegunungan) tidak dipetakan ke laut.
+    if (list && !list.length) return null;
+
+    if (list) {
+      for (const a of list) {
+        if (a.tags.some(tag => textHasTag(locText, tag))) return { p: a.p, r: a.r || 0.05 };
+      }
+      return { p: list[0].p, r: list[0].r || 0.05 };
+    }
+
+    // Provinsi tidak dikenali: coba cari dari kata kunci lokasi.
+    for (const key of Object.keys(SEA_ANCHORS)) {
+      for (const a of SEA_ANCHORS[key]) {
+        if (a.tags.some(tag => tag.length >= 5 && textHasTag(locText, tag))) {
+          return { p: a.p, r: a.r || 0.05 };
+        }
+      }
+    }
+    return null;
+  }
+
+  function chooseRiverSpot(provKey, locText) {
+    if (!/\b(sungai|sei|sg)\b/.test(locText)) return null;
+
+    const spots = RIVER_SPOTS.filter(r => !provKey || r.prov === provKey);
+
+    for (const r of spots) {
+      if (r.tags.some(tag => textHasTag(locText, tag))) return r.p;
+    }
+    const fallback = spots.find(r => r.def);
+    return fallback ? fallback.p : null;
+  }
+
+  function resolveEventPosition(d) {
+    const seed = [d.namaKapal, d.tanggal, d.bulan, d.tahun, d.lokasi].join('|');
+
+    // 1) Koordinat tertulis di kolom Lokasi dipakai apa adanya.
+    const exact = parseCoordinates(d.lokasi);
+    if (exact) return exact;
+
+    const provKey = provinceKey(d.provinsi);
+    const locText = normalizeText(d.lokasi);
+
+    // 2) Kejadian di sungai tetap di sungai.
+    const river = chooseRiverSpot(provKey, locText);
+    if (river) return withJitter(river, seed, 0.008);
+
+    // 3) Selain itu ditempatkan di perairan/pesisir sesuai provinsi dan lokasi.
+    const sea = chooseSeaAnchor(d, provKey, locText);
+    if (sea) {
+      let pos = withJitter(sea.p, seed, sea.r);
+      if (inForeignWaters(pos[0], pos[1])) pos = sea.p.slice();
+      return pos;
+    }
+
+    return null;
+  }
+
+  let expandedLayer = null;
+  let expandedGroups = [];
+  let expandedZoom = null;
+
+  function ensureMap() {
+    if (shipMap) return true;
+    if (typeof L === 'undefined') return false;
+
+    shipMap = L.map('shipMap', { zoomControl: true, worldCopyJump: false })
+      .fitBounds([[-11, 95], [6, 141]]);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors'
+    }).addTo(shipMap);
+
+    expandedLayer = L.layerGroup().addTo(shipMap);
+
+    if (typeof L.markerClusterGroup === 'function') {
+      clusterLayer = L.markerClusterGroup({
+        maxClusterRadius: 60,
+        showCoverageOnHover: false,
+        zoomToBoundsOnClick: false,   // diganti penanganan klik sendiri (sekali klik)
+        spiderfyOnMaxZoom: true,
+        iconCreateFunction: function(cluster) {
+          const n = cluster.getChildCount();
+          // <= 5 hijau, <= 15 kuning, > 15 oranye
+          const level = n <= 5 ? 'small' : (n <= 15 ? 'medium' : 'large');
+          return L.divIcon({
+            html: '<div><span>' + n + '</span></div>',
+            className: 'marker-cluster marker-cluster-' + level,
+            iconSize: L.point(40, 40)
+          });
+        }
+      });
+
+      // Zona <= 30 kejadian: sekali klik langsung terbuka satu per satu.
+      // Zona > 30: klik hanya zoom-in biasa (zona terpecah jadi zona lebih kecil),
+      // diulang sampai zona <= 30, lalu mengikuti aturan di atas.
+      const CLUSTER_EXPAND_MAX = 30;
+      const CLUSTER_FORCE_EXPAND_ZOOM = 12;
+
+      clusterLayer.on('clusterclick', function(e) {
+        const children = e.layer.getAllChildMarkers();
+        if (!children.length) return;
+
+        const bounds = L.latLngBounds(children.map(m => m.getLatLng()));
+        const padded = bounds.pad(0.35);
+        const currentZoom = shipMap.getZoom();
+
+        if (children.length > CLUSTER_EXPAND_MAX && currentZoom < CLUSTER_FORCE_EXPAND_ZOOM) {
+          const fitZoom = Math.min(shipMap.getBoundsZoom(padded), 15);
+          const targetZoom = Math.max(fitZoom, currentZoom + 1);
+          shipMap.setView(bounds.getCenter(), targetZoom);
+          return;
+        }
+
+        clusterLayer.removeLayers(children);
+        children.forEach(m => expandedLayer.addLayer(m));
+        expandedGroups.push(children);
+
+        const targetZoom = Math.min(shipMap.getBoundsZoom(padded), 15);
+        expandedZoom = expandedZoom === null
+          ? targetZoom
+          : Math.min(expandedZoom, targetZoom);
+
+        shipMap.fitBounds(padded, { maxZoom: 15 });
+      });
+
+      // Zoom out jauh dari area yang dibuka: kembalikan ke bentuk zona.
+      shipMap.on('zoomend', function() {
+        if (expandedZoom !== null && shipMap.getZoom() < expandedZoom - 1) {
+          collapseExpanded();
+        }
+      });
+    } else {
+      clusterLayer = L.layerGroup();
+    }
+    clusterLayer.addTo(shipMap);
+    return true;
+  }
+
+  function collapseExpanded() {
+    if (!expandedGroups.length) { expandedZoom = null; return; }
+
+    expandedLayer.clearLayers();
+    const all = [].concat.apply([], expandedGroups);
+    expandedGroups = [];
+    expandedZoom = null;
+
+    if (clusterLayer && clusterLayer.addLayers) clusterLayer.addLayers(all);
+  }
+
+  function resetMapView() {
+    if (!shipMap) return;
+    collapseExpanded();
+    const bounds = currentMapBounds;
+    if (bounds.length) {
+      shipMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+    } else {
+      shipMap.fitBounds([[-11, 95], [6, 141]]);
+    }
+  }
+
+  let currentMapBounds = [];
+
+  function updateMap() {
+    const empty = document.getElementById('mapEmpty');
+
+    if (!ensureMap()) {
+      empty.textContent = 'Peta tidak dapat dimuat (library peta tidak tersedia).';
+      empty.style.display = 'flex';
+      return;
+    }
+
+    clusterLayer.clearLayers();
+    expandedLayer.clearLayers();
+    expandedGroups = [];
+    expandedZoom = null;
+
+    let plotted = 0;
+    let unmapped = 0;
+    const bounds = [];
+    const markers = [];
+
+    filteredData.forEach(d => {
+      const latlng = resolveEventPosition(d);
+      if (!latlng) { unmapped++; return; }
+
+      plotted++;
+
+      const category = conditionCategory(d.kondisi);
+      const color = CONDITION_COLORS[category] || CONDITION_COLORS['Kondisi Lainnya'];
+
+      const marker = L.marker(latlng, {
+        icon: L.divIcon({
+          className: 'ship-pin',
+          html: '<span style="background:' + color + '"></span>',
+          iconSize: [18, 18]
+        })
+      });
+
+      const dateText = [getDayOnly(d.tanggal), d.bulan, d.tahun]
+        .filter(Boolean).join(' ');
+
+      marker.bindPopup(
+        '<div class="map-popup">' +
+          '<b>' + escapeHtml(d.namaKapal) + '</b><br>' +
+          escapeHtml(d.kondisi || category) + '<br>' +
+          escapeHtml(dateText) + '<br>' +
+          (d.lokasi ? escapeHtml(d.lokasi) + '<br>' : '') +
+          (d.provinsi ? escapeHtml(d.provinsi) : '') +
+        '</div>'
+      );
+
+      markers.push(marker);
+      bounds.push(latlng);
+    });
+
+    if (clusterLayer.addLayers) clusterLayer.addLayers(markers);
+    else markers.forEach(m => clusterLayer.addLayer(m));
+
+    currentMapBounds = bounds;
+
+    empty.style.display = plotted ? 'none' : 'flex';
+
+    setTimeout(function() {
+      shipMap.invalidateSize();
+      if (bounds.length) {
+        shipMap.fitBounds(bounds, { padding: [30, 30], maxZoom: 9 });
+      } else {
+        shipMap.fitBounds([[-11, 95], [6, 141]]);
+      }
+    }, 50);
+  }
+
+  function updateTable() {
+    const tbody = document.getElementById('tableBody');
+    const pagination = document.getElementById('tablePagination');
+    const pagesEl = document.getElementById('paginationPages');
+    const prev = document.getElementById('prevPageBtn');
+    const next = document.getElementById('nextPageBtn');
+
+    document.getElementById('resultCount').textContent =
+      filteredData.length + ' data';
+
+    if (!filteredData.length) {
+      tbody.innerHTML =
+        '<tr><td colspan="12" class="empty">' +
+        'Tidak ada data yang sesuai dengan filter.' +
+        '</td></tr>';
+
+      if (pagination) pagination.style.display = 'none';
+      return;
+    }
+
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredData.length / TABLE_PAGE_SIZE)
+    );
+
+    currentTablePage = Math.min(
+      Math.max(currentTablePage, 1),
+      totalPages
+    );
+
+    const startIndex = (currentTablePage - 1) * TABLE_PAGE_SIZE;
+    const endIndex = Math.min(
+      startIndex + TABLE_PAGE_SIZE,
+      filteredData.length
+    );
+
+    const pageData = filteredData.slice(startIndex, endIndex);
+
+    tbody.innerHTML = pageData.map((d, pageIndex) => {
+      const absoluteIndex = startIndex + pageIndex;
+
+      const category = conditionCategory(d.kondisi);
+      const conditionClass =
+        category === 'Tenggelam' ? 'tenggelam' :
+        category === 'Kandas' ? 'kandas' :
+        category === 'Terbakar' ? 'terbakar' :
+        'lainnya';
+
+      return '<tr>' +
+        '<td>' + (absoluteIndex + 1) + '</td>' +
+        '<td>' + escapeHtml(d.tahun) + '</td>' +
+        '<td>' + escapeHtml(d.bulan) + '</td>' +
+        '<td>' + escapeHtml(getDayOnly(d.tanggal)) + '</td>' +
+        '<td><b>' + escapeHtml(d.namaKapal) + '</b></td>' +
+        '<td><span class="condition ' + conditionClass + '">' +
+          escapeHtml(d.kondisi) +
+        '</span></td>' +
+        '<td>' + escapeHtml(d.lokasi) + '</td>' +
+        '<td>' + escapeHtml(d.cuaca) + '</td>' +
+        '<td>' + escapeHtml(d.gelombang) + '</td>' +
+        '<td>' + escapeHtml(d.arahAngin) + '</td>' +
+        '<td>' + escapeHtml(d.angin) + '</td>' +
+        '<td>' + escapeHtml(d.arus) + '</td>' +
+      '</tr>';
+    }).join('');
+
+    if (pagination) pagination.style.display = 'flex';
+
+    if (prev) prev.disabled = currentTablePage <= 1;
+    if (next) next.disabled = currentTablePage >= totalPages;
+
+    renderTablePagination(totalPages);
+  }
+
+  function renderTablePagination(totalPages) {
+    const pagesEl = document.getElementById('paginationPages');
+    if (!pagesEl) return;
+
+    // Tampilkan maksimal 5 nomor halaman.
+    // Jika halaman banyak, gunakan ... agar tidak memenuhi lebar tabel.
+    const maxVisible = 5;
+    let pages = [];
+
+    if (totalPages <= maxVisible) {
+      for (let i = 1; i <= totalPages; i++) pages.push(i);
+    } else {
+      const current = currentTablePage;
+
+      if (current <= 3) {
+        pages = [1, 2, 3, 4, 5, 'ellipsis-right', totalPages];
+      } else if (current >= totalPages - 2) {
+        pages = [
+          1,
+          'ellipsis-left',
+          totalPages - 4,
+          totalPages - 3,
+          totalPages - 2,
+          totalPages - 1,
+          totalPages
+        ];
+      } else {
+        pages = [
+          1,
+          'ellipsis-left',
+          current - 1,
+          current,
+          current + 1,
+          'ellipsis-right',
+          totalPages
+        ];
+      }
+    }
+
+    pagesEl.innerHTML = pages.map(page => {
+      if (typeof page === 'string') {
+        return '<span class="pagination-ellipsis">...</span>';
+      }
+
+      const active = page === currentTablePage ? ' active' : '';
+
+      return '<button' +
+        ' type="button"' +
+        ' class="pagination-number' + active + '"' +
+        ' onclick="goToTablePage(' + page + ')">' +
+        page +
+        '</button>';
+    }).join('');
+  }
+
+  function goToTablePage(page) {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredData.length / TABLE_PAGE_SIZE)
+    );
+
+    if (page < 1 || page > totalPages) return;
+
+    currentTablePage = page;
+    updateTable();
+  }
+
+  function changeTablePage(direction) {
+    const totalPages = Math.max(
+      1,
+      Math.ceil(filteredData.length / TABLE_PAGE_SIZE)
+    );
+
+    const newPage = currentTablePage + direction;
+
+    if (newPage < 1 || newPage > totalPages) return;
+
+    currentTablePage = newPage;
+    updateTable();
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;');
+  }
+</script>
+
+<div class="disclaimer">
+  *Rekapitulasi kecelakaan kapal yang ditampilkan dalam dashboard ini merupakan kejadian yang telah dilakukan analisis oleh BMKG. Data yang disajikan tidak mencakup seluruh kejadian kecelakaan kapal yang terjadi di Perairan Indonesia.
+</div>
+</body>
+</html>
